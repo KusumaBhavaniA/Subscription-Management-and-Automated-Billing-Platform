@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Verify your Billing Platform account with a secure OTP code." />
+    <title>Billing Platform - Verify code</title>
+    <link rel="stylesheet" href="../css/style.css" />
+    <script defer src="../js/services/api.js"></script>
+    <script defer src="../js/utils.js"></script>
+    <script defer src="../js/theme.js"></script>
+    <script defer src="../js/auth.js"></script>
+    <script defer src="../js/animations.js"></script>
+    <script defer src="../js/login.js"></script>
+    <script defer src="../js/dashboard.js"></script>
+    <script defer src="../js/app.js"></script>
+</head>
+<body class="page-shell auth-page">
+    <main class="auth-container">
+        <div class="auth-card reveal-on-scroll" data-reveal data-mouse-glow>
+            <header class="auth-header">
+                <div class="brand-lockup brand-lockup--centered">
+                    <div class="brand-mark">B</div>
+                    <div class="brand-name">Billing Platform</div>
+                </div>
+                <div class="auth-copy">
+                    <h1 class="auth-title">Enter Verification Code</h1>
+                    <p class="auth-subtitle">Enter the six-digit code sent to your email</p>
+                </div>
+                <div class="pill hidden" data-auth-banner>OTP verified.</div>
+            </header>
+
+            <form class="auth-form" data-otp-form novalidate>
+                <div class="otp-grid" aria-label="Verification code" style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px;">
+                    <input class="field otp-field" type="text" inputmode="numeric" maxlength="1" data-otp-digit style="text-align: center; font-size: 1.25rem; font-weight: 700; height: 48px;" />
+                    <input class="field otp-field" type="text" inputmode="numeric" maxlength="1" data-otp-digit style="text-align: center; font-size: 1.25rem; font-weight: 700; height: 48px;" />
+                    <input class="field otp-field" type="text" inputmode="numeric" maxlength="1" data-otp-digit style="text-align: center; font-size: 1.25rem; font-weight: 700; height: 48px;" />
+                    <input class="field otp-field" type="text" inputmode="numeric" maxlength="1" data-otp-digit style="text-align: center; font-size: 1.25rem; font-weight: 700; height: 48px;" />
+                    <input class="field otp-field" type="text" inputmode="numeric" maxlength="1" data-otp-digit style="text-align: center; font-size: 1.25rem; font-weight: 700; height: 48px;" />
+                    <input class="field otp-field" type="text" inputmode="numeric" maxlength="1" data-otp-digit style="text-align: center; font-size: 1.25rem; font-weight: 700; height: 48px;" />
+                </div>
+
+                <div class="countdown" data-otp-timer style="text-align: center; font-size: 0.85rem; color: var(--text-muted);">Resend available in 45s</div>
+
+                <div class="form-actions">
+                    <button class="btn btn-primary ripple" type="submit">
+                        <span>Verify Code</span>
+                    </button>
+                    <button class="btn social-btn ripple" type="button" data-resend-otp style="margin-top: 8px;">
+                        <span>Resend OTP</span>
+                    </button>
+                </div>
+            </form>
+
+            <p class="auth-footnote">
+                Need help? <a class="helper-link" href="login.html">Back to Sign In</a>
+            </p>
+        </div>
+    </main>
+
+    <div data-component="toast"></div>
+    <div data-component="loader"></div>
+</body>
+</html>
