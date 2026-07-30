@@ -13,6 +13,16 @@ class User(Base):
         autoincrement=True
     )
 
+    first_name = Column(
+        String,
+        nullable=False
+    )
+
+    last_name = Column(
+        String,
+        nullable=False
+    )
+
     email = Column(
         String,
         unique=True,
@@ -26,9 +36,14 @@ class User(Base):
         nullable=True
     )
 
-    hashed_password = Column(
+    country = Column(
         String,
         nullable=True
+    )
+
+    hashed_password = Column(
+        String,
+        nullable=False
     )
 
     google_id = Column(
