@@ -1,14 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Mail, Phone, Lock, ArrowLeft, ArrowRight, AlertCircle, CheckSquare, Square } from 'lucide-react';
+import { User, Mail, Phone, Lock, ArrowLeft, AlertCircle, CheckSquare, Square } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { validateIndianMobile, checkPasswordStrength } from '../../utils/validators';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { BPLogo } from '../../components/common/BPLogo';
-import { SocialAuthButtons } from '../../components/auth/SocialAuthButtons';
-import { PhoneInput } from '../../components/common/PhoneInput';
 
 export const RegisterPage: React.FC = () => {
   const [firstName, setFirstName] = useState('');
@@ -18,7 +16,7 @@ export const RegisterPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [country] = useState('India');
-  const [phoneCode, setPhoneCode] = useState('+91');
+  const [phoneCode] = useState('+91');
   const [acceptTerms, setAcceptTerms] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
@@ -47,8 +45,8 @@ export const RegisterPage: React.FC = () => {
       return;
     }
 
-    if (phone.length !== 10) {
-      setError('Please enter a valid 10-digit mobile number.');
+    if (!validateIndianMobile(phone)) {
+      setError('Please enter a valid 10-digit Indian mobile number starting with 6-9 (e.g. 9876543210).');
       return;
     }
 
@@ -85,7 +83,7 @@ export const RegisterPage: React.FC = () => {
       navigate(`/verify-email?email=${encodeURIComponent(res.email)}`, {
         state: {
           email: res.email,
-          message: "We've sent a verification code to your email.",
+          message: "We've sent a verification code to your email address. Please check your inbox.",
         },
       });
     } catch (err: any) {
@@ -175,15 +173,33 @@ export const RegisterPage: React.FC = () => {
               required
             />
 
-            {/* Dedicated Modern Phone Number Input */}
-            <PhoneInput
-              countryCode={phoneCode}
-              onCountryCodeChange={setPhoneCode}
-              phone={phone}
-              onPhoneChange={setPhone}
-              helperText="10-digit mobile number for SMS verification & updates"
-              required
-            />
+            {/* Phone & Country Code */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-secondaryText mb-1.5 uppercase tracking-wider">
+                  Country
+                </label>
+                <input
+                  type="text"
+                  value="India (Default)"
+                  disabled
+                  className="w-full px-3 py-2.5 text-xs rounded-lg border border-border bg-secondary text-secondaryText font-bold cursor-not-allowed"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <Input
+                  label="Phone Number"
+                  type="tel"
+                  prefixText="+91"
+                  placeholder="9876543210"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  leftIcon={<Phone className="w-4 h-4" />}
+                  helperText="10-digit Indian mobile number"
+                  required
+                />
+              </div>
+            </div>
 
             <div className="space-y-1.5">
               <Input
@@ -255,17 +271,13 @@ export const RegisterPage: React.FC = () => {
             <Button
               type="submit"
               variant="primary"
-              size="md"
-              className="w-full py-2.5 mt-2"
+              size="lg"
+              className="w-full mt-4"
               isLoading={isLoading}
-              rightIcon={<ArrowRight className="w-4 h-4" />}
             >
               Create Account
             </Button>
           </form>
-
-          {/* SOCIAL REGISTRATION */}
-          <SocialAuthButtons isLoading={isLoading} />
         </div>
       </motion.div>
     </div>

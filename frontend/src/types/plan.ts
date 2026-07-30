@@ -7,10 +7,4 @@ export interface Plan {
   features: string[];
   isPopular?: boolean;
   activeSubscribers: number;
-  maxCustomers?: string;
-  storage?: string;
-  apiAccess?: string;
-  supportLevel?: string;
-  isEnabled?: boolean;
-  mrr?: number;
 }

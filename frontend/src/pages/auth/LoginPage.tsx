@@ -7,7 +7,6 @@ import { UserRole } from '../../types/auth';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { BPLogo } from '../../components/common/BPLogo';
-import { SocialAuthButtons } from '../../components/auth/SocialAuthButtons';
 import { Modal } from '../../components/common/Modal';
 
 export const LoginPage: React.FC = () => {
@@ -264,9 +263,6 @@ export const LoginPage: React.FC = () => {
               Sign In as {activeTab}
             </Button>
           </form>
-
-          {/* SOCIAL LOGIN (OAuth 2.0) — Customer accounts only */}
-          <SocialAuthButtons isLoading={isLoading} role={activeTab} />
         </div>
 
         {/* Demo Credentials Notice */}
