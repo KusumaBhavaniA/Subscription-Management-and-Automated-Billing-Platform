@@ -1,0 +1,104 @@
+<header class="topbar" role="banner">
+    <div class="topbar__left">
+        <button class="btn-icon drawer-toggle ripple" type="button" data-sidebar-toggle aria-label="Open navigation drawer" aria-expanded="false" title="Open Menu">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-menu"><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
+        </button>
+    </div>
+
+    <div class="topbar__search">
+        <span class="topbar__search-icon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        </span>
+        <input class="field input-with-icon" type="search" placeholder="Search pages, subscriptions, invoices, settings..." data-dashboard-search aria-label="Search dashboard" />
+    </div>
+
+    <div class="topbar__right">
+        <!-- Dark Mode Toggle Button -->
+        <button class="btn-icon theme-toggle-btn ripple" type="button" data-theme-toggle aria-pressed="false" aria-label="Toggle dark/light mode" title="Toggle theme">
+            <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+            <svg class="moon-icon hidden" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+        </button>
+
+        <!-- Notification Bell with Dropdown Panel -->
+        <div class="notifications-wrapper" style="position: relative;">
+            <button class="btn-icon ripple" type="button" data-notifications-toggle aria-label="View notifications" title="Notifications">
+                <span class="badge-dot" aria-hidden="true"></span>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+            </button>
+
+            <div class="notifications-panel hidden" data-notifications-panel>
+                <div class="notifications-header">
+                    <strong>Notifications</strong>
+                    <button class="btn-text btn-sm" type="button" data-mark-read>Mark All Read</button>
+                </div>
+                <div class="notifications-list">
+                    <article class="notification-item unread">
+                        <div class="notification-icon success">✓</div>
+                        <div class="notification-body">
+                            <strong>Invoice Paid</strong>
+                            <p>₹1,00,000 payment settled by Acme Corp.</p>
+                            <small>2 mins ago</small>
+                        </div>
+                    </article>
+                    <article class="notification-item unread">
+                        <div class="notification-icon primary">↻</div>
+                        <div class="notification-body">
+                            <strong>Subscription Renewed</strong>
+                            <p>Enterprise Plan auto-renewed for TechStart Inc.</p>
+                            <small>15 mins ago</small>
+                        </div>
+                    </article>
+                    <article class="notification-item">
+                        <div class="notification-icon danger">!</div>
+                        <div class="notification-body">
+                            <strong>Payment Failed</strong>
+                            <p>Card retry failed for Global Dynamics ($450).</p>
+                            <small>1 hour ago</small>
+                        </div>
+                    </article>
+                    <article class="notification-item">
+                        <div class="notification-icon primary">+</div>
+                        <div class="notification-body">
+                            <strong>New Feature Available</strong>
+                            <p>Automated dunning retries enabled for your workspace.</p>
+                            <small>3 hours ago</small>
+                        </div>
+                    </article>
+                </div>
+                <div class="notifications-footer">
+                    <a class="helper-link" href="dashboard.html#invoices">View All Activity</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Profile Avatar Button with Dropdown Panel -->
+        <div class="profile-dropdown-wrapper" style="position: relative;">
+            <button class="avatar-btn ripple" type="button" data-profile-toggle aria-label="User account menu" aria-expanded="false" title="User Profile Menu">
+                <div class="avatar" data-user-avatar aria-label="User avatar">BP</div>
+            </button>
+
+            <div class="profile-dropdown-panel hidden" data-profile-panel>
+                <div class="profile-dropdown-header">
+                    <strong data-user-name>Account Owner</strong>
+                    <span class="brand-meta" data-user-role>User Workspace</span>
+                    <small class="brand-meta" data-user-email>user@billforge.com</small>
+                </div>
+                <div class="profile-dropdown-divider"></div>
+                <nav class="profile-dropdown-nav">
+                    <a class="profile-dropdown-item" href="profile.html">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                        <span>Profile</span>
+                    </a>
+                    <a class="profile-dropdown-item" href="settings.html">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 1 0-.73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                        <span>Settings</span>
+                    </a>
+                    <button class="profile-dropdown-item profile-dropdown-item--logout" type="button" data-logout>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                        <span>Logout</span>
+                    </button>
+                </nav>
+            </div>
+        </div>
+    </div>
+</header>

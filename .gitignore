@@ -1,0 +1,29 @@
+# Frontend
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# IDE
+.vscode/
+.DS_Store
+.antigravity
+
+# Environment variables
+.env
+*.env
+
+# Python virtual environment
+backend/.venv/
+venv/
+.env/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Alembic cache
+alembic/__pycache__/
+
+# Logs
+*.log

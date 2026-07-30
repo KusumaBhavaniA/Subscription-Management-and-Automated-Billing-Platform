@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Configure Billing Platform workspace settings, notification preferences, billing plan tier, team roles, and API access keys." />
+    <title>Billing Platform - Settings & Preferences</title>
+    
+    <!-- CSS Dependencies -->
+    <link rel="stylesheet" href="../css/style.css" />
+    
+    <!-- JavaScript Application Modules -->
+    <script defer src="../js/services/api.js"></script>
+    <script defer src="../js/utils.js"></script>
+    <script defer src="../js/theme.js"></script>
+    <script defer src="../js/auth.js"></script>
+    <script defer src="../js/animations.js"></script>
+    <script defer src="../js/dashboard.js"></script>
+    <script defer src="../js/app.js"></script>
+</head>
+<body class="page-shell settings-page">
+    <!-- Sidebar Drawer Mobile Overlay -->
+    <div class="sidebar-overlay" data-sidebar-overlay aria-hidden="true"></div>
+
+    <div class="app-layout">
+        <!-- Injected Sidebar Component -->
+        <div data-component="sidebar"></div>
+
+        <div class="app-viewport">
+            <!-- Injected Navbar Component -->
+            <div data-component="navbar"></div>
+
+            <main class="content-wrapper" id="main-content">
+                <header class="content-header reveal-on-scroll" data-reveal>
+                    <div>
+                        <div class="brand-meta">System Controls & Preferences</div>
+                        <h2 class="title-large" data-page-title>Settings</h2>
+                        <p class="page-subtitle">Configure billing rules, API integrations, security options, and notification triggers.</p>
+                    </div>
+                </header>
+
+                <div class="settings-grid">
+                    <!-- General Settings Card -->
+                    <article class="glass-card form-card reveal-on-scroll" data-reveal data-mouse-glow>
+                        <div class="card-header">
+                            <h3 class="title-small">Workspace Configuration</h3>
+                            <p class="brand-meta">Base settings for currency formatting and billing cycles.</p>
+                        </div>
+
+                        <form class="auth-form" data-settings-form novalidate>
+                            <div class="field-row">
+                                <div class="field-group form-stack">
+                                    <label class="form-label" for="setting-currency">Default Currency</label>
+                                    <select class="field" id="setting-currency" name="currency">
+                                        <option value="INR" selected>INR (₹) - Indian Rupee</option>
+                                        <option value="USD">USD ($) - US Dollar</option>
+                                        <option value="EUR">EUR (€) - Euro</option>
+                                        <option value="GBP">GBP (£) - British Pound</option>
+                                    </select>
+                                </div>
+                                <div class="field-group form-stack">
+                                    <label class="form-label" for="setting-timezone">Primary Timezone</label>
+                                    <select class="field" id="setting-timezone" name="timezone">
+                                        <option value="Asia/Kolkata" selected>Asia/Kolkata (IST) - India</option>
+                                        <option value="UTC">UTC - Universal Time</option>
+                                        <option value="America/New_York">EST (UTC-5) - New York</option>
+                                        <option value="Europe/London">GMT (UTC+0) - London</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="field-row" style="margin-top: 12px;">
+                                <div class="field-group form-stack">
+                                    <label class="form-label" for="setting-date-format">Date Format</label>
+                                    <select class="field" id="setting-date-format" name="dateFormat">
+                                        <option value="DD/MM/YYYY" selected>DD/MM/YYYY</option>
+                                        <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                                        <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                                    </select>
+                                </div>
+                                <div class="field-group form-stack">
+                                    <label class="form-label" for="setting-number-format">Number Format</label>
+                                    <select class="field" id="setting-number-format" name="numberFormat">
+                                        <option value="en-IN" selected>Indian Number System (1,00,000)</option>
+                                        <option value="en-US">International System (100,000)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="card-divider">Notification Alerts</div>
+
+                            <div class="checkbox-group-stack">
+                                <label class="checkbox">
+                                    <input name="emailReceipts" type="checkbox" checked />
+                                    <span>Send automated email receipts for successful payments</span>
+                                </label>
+                                <label class="checkbox">
+                                    <input name="dunningAlerts" type="checkbox" checked />
+                                    <span>Trigger dunning sequence on payment retry failures</span>
+                                </label>
+                                <label class="checkbox">
+                                    <input name="churnWarnings" type="checkbox" checked />
+                                    <span>Receive instant notifications when customer churn risk spikes</span>
+                                </label>
+                            </div>
+
+                            <div class="form-actions" style="margin-top: 24px;">
+                                <button class="btn btn-primary ripple" type="submit">
+                                    <span>Save Preferences</span>
+                                    <span class="spinner" aria-hidden="true"></span>
+                                </button>
+                            </div>
+                        </form>
+                    </article>
+
+                    <!-- API Keys & Security Card -->
+                    <article class="glass-card form-card reveal-on-scroll" data-reveal data-mouse-glow>
+                        <div class="card-header">
+                            <h3 class="title-small">API Access & Integration Tokens</h3>
+                            <p class="brand-meta">Use secret keys to connect external microservices and backend listeners.</p>
+                        </div>
+
+                        <div class="api-key-box">
+                            <div class="brand-meta">Live Production Secret Key</div>
+                            <div class="input-shell" style="margin-top: 6px;">
+                                <input class="field" type="password" value="bf_live_994827019842710398471" readonly />
+                                <button class="btn btn-ghost btn-sm ripple" type="button" data-copy-key>Copy</button>
+                            </div>
+                        </div>
+
+                        <div class="card-divider">Security Controls</div>
+
+                        <div class="security-toggles">
+                            <div class="toggle-row">
+                                <div>
+                                    <strong>Enforce Two-Factor Authentication</strong>
+                                    <p class="brand-meta">Require 2FA for all administrator team accounts.</p>
+                                </div>
+                                <label class="switch"><input type="checkbox" checked /><span class="slider"></span></label>
+                            </div>
+                            <div class="toggle-row" style="margin-top: 16px;">
+                                <div>
+                                    <strong>IP Whitelist Dunning API</strong>
+                                    <p class="brand-meta">Restrict automated invoice webhook triggers to verified IPs.</p>
+                                </div>
+                                <label class="switch"><input type="checkbox" /><span class="slider"></span></label>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+
+                <!-- Injected Footer Component -->
+                <div data-component="footer" style="margin-top: 48px;"></div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Injected Overlays -->
+    <div data-component="toast"></div>
+    <div data-component="loader"></div>
+    <div data-component="modal"></div>
+</body>
+</html>

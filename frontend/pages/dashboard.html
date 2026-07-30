@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Billing Platform SaaS Dashboard - High-level summary of subscription revenue, MRR growth, plan distribution, active customers, and transaction workflows." />
+    <title>Billing Platform - Dashboard</title>
+    
+    <!-- CSS Dependencies -->
+    <link rel="stylesheet" href="../css/style.css" />
+    
+    <!-- JavaScript Application Modules -->
+    <script defer src="../js/services/api.js"></script>
+    <script defer src="../js/utils.js"></script>
+    <script defer src="../js/theme.js"></script>
+    <script defer src="../js/auth.js"></script>
+    <script defer src="../js/animations.js"></script>
+    <script defer src="../js/dashboard.js"></script>
+    <script defer src="../js/app.js"></script>
+</head>
+<body class="page-shell dashboard-page">
+    <!-- Sidebar Drawer Mobile Overlay -->
+    <div class="sidebar-overlay" data-sidebar-overlay aria-hidden="true"></div>
+
+    <!-- Main Application Shell -->
+    <div class="app-layout">
+        <!-- Injected Sidebar Component -->
+        <div data-component="sidebar"></div>
+
+        <!-- Content Area -->
+        <div class="app-viewport">
+            <!-- Injected Top Navbar Component -->
+            <div data-component="navbar"></div>
+
+            <!-- Page Main Content -->
+            <main class="content-wrapper" id="main-content">
+                
+                <!-- View Header -->
+                <header class="content-header reveal-on-scroll" data-reveal>
+                    <div>
+                        <div class="brand-meta">Overview & Financial Controls</div>
+                        <h2 class="title-large" data-page-title>Dashboard</h2>
+                        <p class="page-subtitle">Real-time overview of monthly recurring revenue, subscription lifecycle, and customer activity.</p>
+                    </div>
+                    <div class="cluster">
+                        <button class="btn btn-outline ripple" type="button" data-view-filter="all">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                            <span>Filter View</span>
+                        </button>
+                    </div>
+                </header>
+
+                <!-- 1. Statistics Metric Cards -->
+                <section class="overview-grid" data-overview-grid aria-label="Key Performance Indicators">
+                    <!-- Skeleton Cards initially rendered before JS hydration -->
+                    <div class="metric-card skeleton-card"><div class="skeleton" style="width: 40%; height: 16px;"></div><div class="skeleton" style="width: 70%; height: 32px; margin-top: 12px;"></div></div>
+                    <div class="metric-card skeleton-card"><div class="skeleton" style="width: 40%; height: 16px;"></div><div class="skeleton" style="width: 70%; height: 32px; margin-top: 12px;"></div></div>
+                    <div class="metric-card skeleton-card"><div class="skeleton" style="width: 40%; height: 16px;"></div><div class="skeleton" style="width: 70%; height: 32px; margin-top: 12px;"></div></div>
+                    <div class="metric-card skeleton-card"><div class="skeleton" style="width: 40%; height: 16px;"></div><div class="skeleton" style="width: 70%; height: 32px; margin-top: 12px;"></div></div>
+                </section>
+
+                <!-- 2. Charts Section -->
+                <section class="charts-grid" aria-label="Revenue and Plan Analytics">
+                    
+                    <!-- Line Chart Card: Revenue Growth -->
+                    <article class="glass-card chart-card reveal-on-scroll" data-reveal data-mouse-glow>
+                        <div class="chart-card-header">
+                            <div>
+                                <span class="brand-meta">Financial Trajectory</span>
+                                <h3 class="title-small">Monthly Recurring Revenue (MRR)</h3>
+                            </div>
+                            <div class="chart-period-picker">
+                                <button class="chip is-active" type="button" data-period="12m">12M</button>
+                                <button class="chip" type="button" data-period="30d">30D</button>
+                                <button class="chip" type="button" data-period="7d">7D</button>
+                            </div>
+                        </div>
+                        <div class="chart-viewport" data-line-chart aria-label="MRR Line Chart">
+                            <div class="skeleton" style="width: 100%; height: 260px; border-radius: 12px;"></div>
+                        </div>
+                    </article>
+
+                    <!-- Doughnut / Pie Chart Card: Plan Mix Distribution -->
+                    <article class="glass-card chart-card reveal-on-scroll" data-reveal data-mouse-glow>
+                        <div class="chart-card-header">
+                            <div>
+                                <span class="brand-meta">Segment Breakdown</span>
+                                <h3 class="title-small">Subscription Plan Mix</h3>
+                            </div>
+                            <span class="badge badge-success">+14% Growth</span>
+                        </div>
+                        <div class="chart-viewport chart-viewport--pie" data-pie-chart aria-label="Plan Distribution Chart">
+                            <div class="skeleton" style="width: 180px; height: 180px; border-radius: 50%; margin: 0 auto;"></div>
+                        </div>
+                        <div class="legend-grid">
+                            <div class="legend-item"><span class="legend-dot" style="background: var(--primary);"></span>Enterprise (44%)</div>
+                            <div class="legend-item"><span class="legend-dot" style="background: var(--secondary);"></span>Scale Tier (31%)</div>
+                            <div class="legend-item"><span class="legend-dot" style="background: var(--accent);"></span>Pro Plan (18%)</div>
+                            <div class="legend-item"><span class="legend-dot" style="background: var(--warning);"></span>Starter (7%)</div>
+                        </div>
+                    </article>
+                </section>
+
+                <!-- 3. Secondary Analytics: Volume & Bar Growth -->
+                <section class="secondary-grid" aria-label="Transaction Volume & Sales">
+                    <article class="glass-card chart-card reveal-on-scroll" data-reveal data-mouse-glow>
+                        <div class="chart-card-header">
+                            <div>
+                                <span class="brand-meta">Weekly Pace</span>
+                                <h3 class="title-small">Daily Invoice Volume</h3>
+                            </div>
+                            <span class="badge badge-info">Avg 3,420 / day</span>
+                        </div>
+                        <div class="bar-chart-viewport" data-bar-chart aria-label="Volume Bar Chart"></div>
+                    </article>
+
+                    <article class="glass-card chart-card reveal-on-scroll" data-reveal data-mouse-glow>
+                        <div class="chart-card-header">
+                            <div>
+                                <span class="brand-meta">Channel Distribution</span>
+                                <h3 class="title-small">Payment Methods</h3>
+                            </div>
+                        </div>
+                        <div class="payments-stack" data-payments></div>
+                    </article>
+                </section>
+
+                <!-- 4. Main Data Tables & Activity Grid -->
+                <section class="tables-grid" aria-label="Recent Transactions and Accounts">
+                    
+                    <!-- Recent Transactions Table -->
+                    <article class="glass-card table-card reveal-on-scroll" data-reveal>
+                        <div class="table-header">
+                            <div>
+                                <h3 class="title-small">Recent Transactions</h3>
+                                <p class="brand-meta">Latest renewals, invoice settlements, and upgrades.</p>
+                            </div>
+                            <button class="btn btn-ghost btn-sm ripple" type="button" data-view-all-transactions>View All</button>
+                        </div>
+                        <div class="transactions-list" data-transactions></div>
+                    </article>
+
+                    <!-- Latest Customers List -->
+                    <article class="glass-card table-card reveal-on-scroll" data-reveal>
+                        <div class="table-header">
+                            <div>
+                                <h3 class="title-small">Active Accounts</h3>
+                                <p class="brand-meta">Highest MRR customer accounts and status.</p>
+                            </div>
+                            <button class="btn btn-ghost btn-sm ripple" type="button" data-view-all-customers>Manage</button>
+                        </div>
+                        <div class="customers-list" data-customers></div>
+                    </article>
+                </section>
+
+                <!-- 5. Upcoming Renewals & Activity Timeline -->
+                <section class="tables-grid" aria-label="Renewals and Activity Stream">
+                    <article class="glass-card table-card reveal-on-scroll" data-reveal>
+                        <div class="table-header">
+                            <div>
+                                <h3 class="title-small">Upcoming Renewals</h3>
+                                <p class="brand-meta">Contracts scheduled to auto-renew within 7 days.</p>
+                            </div>
+                        </div>
+                        <div class="renewals-list" data-renewals></div>
+                    </article>
+
+                    <article class="glass-card table-card reveal-on-scroll" data-reveal>
+                        <div class="table-header">
+                            <div>
+                                <h3 class="title-small">Activity Timeline</h3>
+                                <p class="brand-meta">System events, billing triggers, and dunning logs.</p>
+                            </div>
+                        </div>
+                        <div class="timeline" data-activity></div>
+                    </article>
+                </section>
+
+                <!-- Injected Footer Component -->
+                <div data-component="footer" style="margin-top: 48px;"></div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Injected Global Overlay Components -->
+    <div data-component="toast"></div>
+    <div data-component="loader"></div>
+    <div data-component="modal"></div>
+</body>
+</html>
