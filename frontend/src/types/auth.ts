@@ -1,4 +1,6 @@
 export type UserRole = 'Admin' | 'Customer';
+export type SocialProvider = 'Google' | 'Microsoft' | 'Apple';
+export type AuthProviderType = 'Email & Password' | SocialProvider;
 
 export interface User {
   id: string;
@@ -11,11 +13,15 @@ export interface User {
   country?: string;
   role: UserRole;
   createdAt: string;
-  status?: 'Verified' | 'Pending';
+  status?: 'Verified' | 'Pending Verification' | 'Pending' | 'Suspended';
   registrationDate?: string;
   currentPlan?: string;
   subscriptionStatus?: string;
   themePreference?: 'light' | 'dark' | 'system';
+  authProvider?: AuthProviderType;
+  linkedProviders?: SocialProvider[];
+  profilePicture?: string;
+  lastLoginTime?: string;
 }
 
 export interface RegisterCustomerDTO {
@@ -54,4 +60,3 @@ export interface AuthSession {
   user: User;
   token: string;
 }
-

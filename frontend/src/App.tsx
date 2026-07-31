@@ -15,12 +15,15 @@ import { MainLayout } from './components/layout/MainLayout';
 import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
 import { VerifyEmailPage } from './pages/auth/VerifyEmailPage';
+import { AuthCallbackPage } from './pages/auth/AuthCallbackPage';
 
 import { AdminDashboard } from './pages/dashboard/AdminDashboard';
 import { CustomerDashboard } from './pages/dashboard/CustomerDashboard';
 
 import { CustomersPage } from './pages/customers/CustomersPage';
+import { CustomerDetailsPage } from './pages/customers/CustomerDetailsPage';
 import { PlansPage } from './pages/plans/PlansPage';
+import { CustomerPlansPage } from './pages/plans/CustomerPlansPage';
 import { SubscriptionsPage } from './pages/subscriptions/SubscriptionsPage';
 import { InvoicesPage } from './pages/invoices/InvoicesPage';
 import { PaymentsPage } from './pages/payments/PaymentsPage';
@@ -64,6 +67,7 @@ export const AppContent: React.FC = () => {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
+        <Route path="/auth/callback" element={<AuthCallbackPage />} />
 
         {/* Protected App Routes */}
         <Route element={<ProtectedRoute />}>
@@ -72,12 +76,14 @@ export const AppContent: React.FC = () => {
             <Route path="/admin" element={<MainLayout />}>
               <Route path="dashboard" element={<AdminDashboard />} />
               <Route path="customers" element={<CustomersPage />} />
+              <Route path="customers/:id" element={<CustomerDetailsPage />} />
               <Route path="plans" element={<PlansPage />} />
               <Route path="subscriptions" element={<SubscriptionsPage />} />
               <Route path="invoices" element={<InvoicesPage />} />
               <Route path="payments" element={<PaymentsPage />} />
               <Route path="analytics" element={<AnalyticsPage />} />
               <Route path="reports" element={<ReportsPage />} />
+              <Route path="support" element={<SupportPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="profile" element={<ProfilePage />} />
             </Route>
@@ -87,6 +93,7 @@ export const AppContent: React.FC = () => {
           <Route element={<CustomerRoute />}>
             <Route path="/customer" element={<MainLayout />}>
               <Route path="dashboard" element={<CustomerDashboard />} />
+              <Route path="plans" element={<CustomerPlansPage />} />
               <Route path="subscriptions" element={<SubscriptionsPage />} />
               <Route path="invoices" element={<InvoicesPage />} />
               <Route path="payments" element={<PaymentsPage />} />

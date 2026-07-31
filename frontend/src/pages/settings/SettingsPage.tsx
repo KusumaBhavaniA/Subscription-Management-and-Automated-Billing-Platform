@@ -104,16 +104,11 @@ export const SettingsPage: React.FC = () => {
     { value: 'Asia/Singapore', label: '(GMT+08:00) Singapore' },
   ];
 
-  const dateFormatOptions = [
-    { value: 'DD/MM/YYYY', label: 'DD/MM/YYYY (28/07/2026)' },
-    { value: 'MM/DD/YYYY', label: 'MM/DD/YYYY (07/28/2026)' },
-    { value: 'YYYY-MM-DD', label: 'YYYY-MM-DD (2026-07-28)' },
-  ];
 
-  const numberFormatOptions = [
-    { value: 'Indian', label: 'Indian System (1,00,000)' },
-    { value: 'International', label: 'International System (100,000)' },
-  ];
+  // Application-managed formatting defaults (not user-configurable):
+  // Date Format: DD/MM/YYYY | Number Format: Indian Numbering System (₹1,00,000)
+
+
 
   const handleToggleNotification = (key: keyof WorkspaceSettings['notifications']) => {
     setFormState((prev) => ({
@@ -161,12 +156,38 @@ export const SettingsPage: React.FC = () => {
     performSave();
   };
 
+  const handleRestoreDefaults = () => {
+    const defaults: WorkspaceSettings = {
+      currency: 'INR (₹)',
+      timezone: 'Asia/Kolkata',
+      dateFormat: 'DD/MM/YYYY',
+      numberFormat: 'Indian',
+      notifications: {
+        emailNotifications: true,
+        billingAlerts: true,
+        invoiceAlerts: true,
+        subscriptionRenewalAlerts: true,
+        securityAlerts: true,
+      },
+      appearance: {
+        theme: 'light',
+        accentColor: 'blue',
+        fontSize: 'medium',
+      },
+      security: {
+        twoFactor: false,
+        sessionTimeout: true,
+      },
+    };
+    setFormState(defaults);
+    setTheme('light');
+  };
+
   const tabs: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
     { id: 'general', label: 'General', icon: <Globe className="w-4 h-4" /> },
     { id: 'appearance', label: 'Appearance', icon: <Palette className="w-4 h-4" /> },
     { id: 'notifications', label: 'Notifications', icon: <Bell className="w-4 h-4" /> },
     { id: 'security', label: 'Security', icon: <Shield className="w-4 h-4" /> },
-    { id: 'profile', label: 'Profile', icon: <UserCheck className="w-4 h-4" /> },
     { id: 'billing', label: 'Billing', icon: <CreditCard className="w-4 h-4" /> },
   ];
 
@@ -192,13 +213,7 @@ export const SettingsPage: React.FC = () => {
           return (
             <button
               key={t.id}
-              onClick={() => {
-                if (t.id === 'profile') {
-                  requestNavigation(() => navigate('/customer/profile'));
-                } else {
-                  setActiveTab(t.id);
-                }
-              }}
+              onClick={() => setActiveTab(t.id)}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                 isActive
                   ? 'bg-primary text-white shadow-md'
@@ -226,6 +241,17 @@ export const SettingsPage: React.FC = () => {
                   Customize theme modes and color schemes.
                 </p>
               </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  handleThemeChange('light');
+                  handleAccentChange('blue');
+                }}
+              >
+                Reset Theme
+              </Button>
             </div>
 
             {/* Theme Options: ○ Light  ○ Dark */}
@@ -400,22 +426,17 @@ export const SettingsPage: React.FC = () => {
                 onChange={(e) => setFormState({ ...formState, timezone: e.target.value })}
                 helperText="Determines recurring subscription billing trigger times"
               />
+            </div>
 
-              <Select
-                label="Date Format"
-                options={dateFormatOptions}
-                value={formState.dateFormat}
-                onChange={(e) => setFormState({ ...formState, dateFormat: e.target.value })}
-                helperText="Used across all billing statements & PDF downloads"
-              />
-
-              <Select
-                label="Number Formatting"
-                options={numberFormatOptions}
-                value={formState.numberFormat}
-                onChange={(e) => setFormState({ ...formState, numberFormat: e.target.value })}
-                helperText="Lakhs/Crores vs Thousands/Millions representation"
-              />
+            <div className="pt-4 border-t border-border flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleRestoreDefaults}
+              >
+                Restore Defaults
+              </Button>
             </div>
           </Card>
         )}

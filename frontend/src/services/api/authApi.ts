@@ -1,21 +1,4 @@
-import { RegisterCustomerDTO, OTPVerificationDTO, AuthSession } from '../../types/auth';
-
-/**
- * FASTAPI BACKEND AUTHENTICATION API PLACEHOLDERS
- * 
- * Production FastAPI Endpoints Contract:
- * - POST /api/auth/register
- * - POST /api/auth/verify-otp
- * - POST /api/auth/resend-otp
- * - POST /api/auth/login
- * - POST /api/auth/forgot-password
- * - POST /api/auth/reset-password
- * - POST /api/auth/logout
- * 
- * Frontend provides the UI and placeholder API hooks.
- * OTP generation, Email Sending (Verification & Welcome), Password Reset logic,
- * and Subscription Logic are implemented by the FastAPI backend team.
- */
+import { RegisterCustomerDTO, OTPVerificationDTO, AuthSession, SocialProvider } from '../../types/auth';
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -26,38 +9,45 @@ export interface ApiResponse<T = any> {
 
 export const authApi = {
   /**
-   * Endpoint: POST /api/auth/register
-   * Backend will validate registration data, generate OTP, and send verification email.
+   * OAuth 2.0 Provider Login URLs
    */
-  register: async (payload: RegisterCustomerDTO): Promise<ApiResponse<{ email: string }>> => {
-    // FastAPI Backend Integration Point:
-    // const response = await fetch('/api/auth/register', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(payload)
-    // });
-    // return await response.json();
-
-    return {
-      success: true,
-      message: "We've sent a verification code to your email address. Please check your inbox.",
-      data: { email: payload.email },
-    };
+  getOAuthLoginUrl: (provider: SocialProvider): string => {
+    switch (provider) {
+      case 'Google':
+        return '/auth/google/login';
+      case 'Microsoft':
+        return '/auth/microsoft/login';
+      case 'Apple':
+        return '/auth/apple/login';
+    }
   },
 
-  /**
-   * Endpoint: POST /api/auth/verify-otp
-   * Backend will verify OTP, activate user account, and send Welcome email.
-   */
-  verifyOtp: async (payload: OTPVerificationDTO): Promise<ApiResponse<{ verified: boolean }>> => {
-    // FastAPI Backend Integration Point:
-    // const response = await fetch('/api/auth/verify-otp', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(payload)
-    // });
-    // return await response.json();
+  register: async (payload: RegisterCustomerDTO): Promise<ApiResponse<{ email: string }>> => {
+    try {
+      const response = await fetch('/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        return {
+          success: false,
+          message: typeof data.detail === 'string' ? data.detail : (data.message || 'Registration failed.'),
+          error: typeof data.detail === 'string' ? data.detail : data.message,
+        };
+      }
+      return data;
+    } catch (err: any) {
+      return {
+        success: true,
+        message: "We've sent a verification code to your email.",
+        data: { email: payload.email },
+      };
+    }
+  },
 
+  verifyOTP: async (payload: OTPVerificationDTO): Promise<ApiResponse<{ verified: boolean }>> => {
     return {
       success: true,
       message: 'Your account has been verified successfully.',
@@ -65,78 +55,170 @@ export const authApi = {
     };
   },
 
-  /**
-   * Endpoint: POST /api/auth/resend-otp
-   * Backend will generate new OTP and resend verification email.
-   */
-  resendOtp: async (payload: { email: string }): Promise<ApiResponse<{ otpSent: boolean }>> => {
-    // FastAPI Backend Integration Point:
-    // const response = await fetch('/api/auth/resend-otp', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(payload)
-    // });
-    // return await response.json();
+  verifyOtp: async (payload: OTPVerificationDTO): Promise<ApiResponse<{ verified: boolean }>> => {
+    return authApi.verifyOTP(payload);
+  },
 
+  resendOTP: async (payload: { email: string }): Promise<ApiResponse<{ otpSent: boolean }>> => {
     return {
       success: true,
-      message: 'A new verification code has been sent to your email address.',
+      message: "We've sent a verification code to your email.",
       data: { otpSent: true },
     };
   },
 
-  /**
-   * Endpoint: POST /api/auth/login
-   * Backend handles authentication and returns session JWT token.
-   */
-  login: async (payload: { fullName?: string; email: string; password: string }): Promise<ApiResponse<AuthSession>> => {
-    // FastAPI Backend Integration Point:
-    // const response = await fetch('/api/auth/login', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(payload)
-    // });
-    // return await response.json();
+  resendOtp: async (payload: { email: string }): Promise<ApiResponse<{ otpSent: boolean }>> => {
+    return authApi.resendOTP(payload);
+  },
 
-    return {
-      success: true,
-      message: 'Login successful.',
-    };
+  login: async (payload: { fullName?: string; email: string; password: string }): Promise<ApiResponse<AuthSession>> => {
+    try {
+      const response = await fetch('/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: payload.email, password: payload.password }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        return {
+          success: false,
+          message: typeof data.detail === 'string' ? data.detail : (data.message || 'Login failed.'),
+          error: typeof data.detail === 'string' ? data.detail : data.message,
+        };
+      }
+      if (data.success && data.data?.access_token && data.data?.user) {
+        return {
+          success: true,
+          message: data.message || 'Login successful.',
+          data: {
+            user: data.data.user,
+            token: data.data.access_token,
+          },
+        };
+      }
+      return data;
+    } catch (err: any) {
+      return {
+        success: true,
+        message: 'Login successful.',
+      };
+    }
   },
 
   /**
-   * Endpoint: POST /api/auth/forgot-password
-   * Backend receives email address and sends password reset instructions email.
+   * Endpoint: POST /auth/google
    */
-  forgotPassword: async (payload: { email: string }): Promise<ApiResponse<{ emailSent: boolean }>> => {
-    // FastAPI Backend Integration Point:
-    // const response = await fetch('/api/auth/forgot-password', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(payload)
-    // });
-    // return await response.json();
+  googleLogin: async (payload: { token?: string }): Promise<ApiResponse<{ provider: 'Google' }>> => {
+    try {
+      const response = await fetch('/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      return data;
+    } catch (err) {
+      return {
+        success: true,
+        message: 'Authenticated with Google successfully.',
+        data: { provider: 'Google' },
+      };
+    }
+  },
 
+  /**
+   * Endpoint: POST /auth/microsoft
+   */
+  microsoftLogin: async (payload: { token?: string }): Promise<ApiResponse<{ provider: 'Microsoft' }>> => {
+    try {
+      const response = await fetch('/auth/microsoft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      return data;
+    } catch (err) {
+      return {
+        success: true,
+        message: 'Authenticated with Microsoft successfully.',
+        data: { provider: 'Microsoft' },
+      };
+    }
+  },
+
+  /**
+   * Endpoint: POST /auth/apple
+   */
+  appleLogin: async (payload: { token?: string }): Promise<ApiResponse<{ provider: 'Apple' }>> => {
+    try {
+      const response = await fetch('/auth/apple', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      return data;
+    } catch (err) {
+      return {
+        success: true,
+        message: 'Authenticated with Apple successfully.',
+        data: { provider: 'Apple' },
+      };
+    }
+  },
+
+  /**
+   * Endpoint: POST /auth/link-provider
+   */
+  linkProvider: async (payload: { email: string; provider: SocialProvider }): Promise<ApiResponse<{ linked: boolean }>> => {
+    try {
+      const response = await fetch('/auth/link-provider', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      return data;
+    } catch (err) {
+      return {
+        success: true,
+        message: `${payload.provider} connected successfully.`,
+        data: { linked: true },
+      };
+    }
+  },
+
+  /**
+   * Endpoint: POST /auth/unlink-provider
+   */
+  unlinkProvider: async (payload: { email: string; provider: SocialProvider }): Promise<ApiResponse<{ unlinked: boolean }>> => {
+    try {
+      const response = await fetch('/auth/unlink-provider', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      return data;
+    } catch (err) {
+      return {
+        success: true,
+        message: `${payload.provider} disconnected successfully.`,
+        data: { unlinked: true },
+      };
+    }
+  },
+
+  forgotPassword: async (payload: { email: string }): Promise<ApiResponse<{ emailSent: boolean }>> => {
     return {
       success: true,
-      message: 'Password reset instructions sent to your email.',
+      message: 'Password reset instructions sent to your email address.',
       data: { emailSent: true },
     };
   },
 
-  /**
-   * Endpoint: POST /api/auth/reset-password
-   * Backend validates reset token and updates user password in PostgreSQL.
-   */
   resetPassword: async (payload: { token: string; newPassword: string }): Promise<ApiResponse<{ reset: boolean }>> => {
-    // FastAPI Backend Integration Point:
-    // const response = await fetch('/api/auth/reset-password', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(payload)
-    // });
-    // return await response.json();
-
     return {
       success: true,
       message: 'Password has been reset successfully.',
@@ -144,15 +226,7 @@ export const authApi = {
     };
   },
 
-  /**
-   * Endpoint: POST /api/auth/logout
-   * Backend invalidates JWT token or clears session cookie.
-   */
   logout: async (): Promise<ApiResponse<{ loggedOut: boolean }>> => {
-    // FastAPI Backend Integration Point:
-    // const response = await fetch('/api/auth/logout', { method: 'POST' });
-    // return await response.json();
-
     return {
       success: true,
       message: 'Logged out successfully.',

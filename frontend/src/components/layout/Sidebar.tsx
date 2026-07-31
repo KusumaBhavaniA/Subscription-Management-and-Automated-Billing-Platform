@@ -45,12 +45,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onCloseMobile })
     { label: 'Payments', path: `${rolePrefix}/payments`, icon: DollarSign },
     { label: 'Analytics', path: '/admin/analytics', icon: PieChart },
     { label: 'Reports', path: `${rolePrefix}/reports`, icon: BarChart2 },
+    { label: 'Support', path: '/admin/support', icon: HelpCircle },
     { label: 'Settings', path: `${rolePrefix}/settings`, icon: Settings },
     { label: 'Profile', path: `${rolePrefix}/profile`, icon: User },
   ];
 
   const customerNavItems = [
     { label: 'Dashboard', path: `${rolePrefix}/dashboard`, icon: LayoutDashboard },
+    { label: 'View Plans', path: '/customer/plans', icon: Layers },
     { label: 'My Subscription', path: `${rolePrefix}/subscriptions`, icon: CreditCard },
     { label: 'My Invoices', path: `${rolePrefix}/invoices`, icon: FileText },
     { label: 'Payments', path: `${rolePrefix}/payments`, icon: DollarSign },

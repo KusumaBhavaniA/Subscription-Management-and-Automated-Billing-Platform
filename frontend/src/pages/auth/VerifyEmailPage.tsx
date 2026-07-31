@@ -13,7 +13,7 @@ export const VerifyEmailPage: React.FC = () => {
 
   const queryParams = new URLSearchParams(location.search);
   const initialEmail = queryParams.get('email') || (location.state as any)?.email || '';
-  const initialNotice = (location.state as any)?.message || "We've sent a verification code to your email address. Please check your inbox.";
+  const initialNotice = (location.state as any)?.message || "We've sent a verification code to your email.";
 
   const [email, setEmail] = useState(initialEmail);
   const [otpDigits, setOtpDigits] = useState<string[]>(['', '', '', '', '', '']);
