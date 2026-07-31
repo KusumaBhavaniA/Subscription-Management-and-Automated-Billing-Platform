@@ -177,7 +177,7 @@ export const CustomerDetailsPage: React.FC = () => {
         return <Badge variant="warning">{st}</Badge>;
       case 'Suspended':
       case 'Inactive':
-        return <Badge variant="danger">{st}</Badge>;
+        return <Badge variant="error">{st}</Badge>;
       default:
         return <Badge variant="neutral">{st}</Badge>;
     }

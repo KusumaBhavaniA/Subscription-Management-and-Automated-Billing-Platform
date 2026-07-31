@@ -51,6 +51,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onCloseMobile })
 
   const customerNavItems = [
     { label: 'Dashboard', path: `${rolePrefix}/dashboard`, icon: LayoutDashboard },
+    { label: 'View Plans', path: '/customer/plans', icon: Layers },
     { label: 'My Subscription', path: `${rolePrefix}/subscriptions`, icon: CreditCard },
     { label: 'My Invoices', path: `${rolePrefix}/invoices`, icon: FileText },
     { label: 'Payments', path: `${rolePrefix}/payments`, icon: DollarSign },

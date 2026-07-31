@@ -108,7 +108,7 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
         return <Badge variant="warning">{status}</Badge>;
       case 'Suspended':
       case 'Inactive':
-        return <Badge variant="danger">{status}</Badge>;
+        return <Badge variant="error">{status}</Badge>;
       default:
         return <Badge variant="neutral">{status}</Badge>;
     }

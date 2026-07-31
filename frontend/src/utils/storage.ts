@@ -9,6 +9,7 @@ export const STORAGE_KEYS = {
   CUSTOMERS: 'billing_customers',
   SUBSCRIPTIONS: 'billing_subscriptions',
   PLANS: 'billing_plans',
+  TICKETS: 'billing_tickets',
 } as const;
 
 export const getItem = <T>(key: string, fallback: T): T => {

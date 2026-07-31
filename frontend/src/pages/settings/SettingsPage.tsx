@@ -104,16 +104,11 @@ export const SettingsPage: React.FC = () => {
     { value: 'Asia/Singapore', label: '(GMT+08:00) Singapore' },
   ];
 
-  const dateFormatOptions = [
-    { value: 'DD/MM/YYYY', label: 'DD/MM/YYYY (28/07/2026)' },
-    { value: 'MM/DD/YYYY', label: 'MM/DD/YYYY (07/28/2026)' },
-    { value: 'YYYY-MM-DD', label: 'YYYY-MM-DD (2026-07-28)' },
-  ];
 
-  const numberFormatOptions = [
-    { value: 'Indian', label: 'Indian System (1,00,000)' },
-    { value: 'International', label: 'International System (100,000)' },
-  ];
+  // Application-managed formatting defaults (not user-configurable):
+  // Date Format: DD/MM/YYYY | Number Format: Indian Numbering System (₹1,00,000)
+
+
 
   const handleToggleNotification = (key: keyof WorkspaceSettings['notifications']) => {
     setFormState((prev) => ({
@@ -194,7 +189,8 @@ export const SettingsPage: React.FC = () => {
               key={t.id}
               onClick={() => {
                 if (t.id === 'profile') {
-                  requestNavigation(() => navigate('/customer/profile'));
+                  const rolePrefix = user?.role === 'Admin' ? '/admin' : '/customer';
+                  requestNavigation(() => navigate(`${rolePrefix}/profile`));
                 } else {
                   setActiveTab(t.id);
                 }
@@ -399,22 +395,6 @@ export const SettingsPage: React.FC = () => {
                 value={formState.timezone}
                 onChange={(e) => setFormState({ ...formState, timezone: e.target.value })}
                 helperText="Determines recurring subscription billing trigger times"
-              />
-
-              <Select
-                label="Date Format"
-                options={dateFormatOptions}
-                value={formState.dateFormat}
-                onChange={(e) => setFormState({ ...formState, dateFormat: e.target.value })}
-                helperText="Used across all billing statements & PDF downloads"
-              />
-
-              <Select
-                label="Number Formatting"
-                options={numberFormatOptions}
-                value={formState.numberFormat}
-                onChange={(e) => setFormState({ ...formState, numberFormat: e.target.value })}
-                helperText="Lakhs/Crores vs Thousands/Millions representation"
               />
             </div>
           </Card>

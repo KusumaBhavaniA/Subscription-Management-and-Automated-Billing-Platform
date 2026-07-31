@@ -57,10 +57,42 @@ export const authService = {
       lastName,
       fullName,
       phoneNumber: `${dto.phoneCode || '+91'} ${dto.phoneNumber.trim()}`,
+      country: dto.country || 'India',
       passwordHash: dto.password,
       createdAt: new Date().toISOString(),
     });
     setItem(STORAGE_KEYS.PENDING_REGISTRATIONS, filteredPending);
+
+    // STEP 4: Add to Admin -> Customers directory immediately as Pending Verification
+    const customerId = `CUS-2026-${Math.floor(100000 + Math.random() * 900000)}`;
+    const existingCustomers = getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
+    const customerIndex = existingCustomers.findIndex(c => c.email.toLowerCase() === cleanEmail);
+    
+    const newPendingCustomer: Customer = {
+      id: `cust-${Date.now()}`,
+      customerId,
+      name: fullName,
+      firstName,
+      lastName,
+      email: cleanEmail,
+      phone: `${dto.phoneCode || '+91'} ${dto.phoneNumber.trim()}`,
+      status: 'Pending Verification',
+      subscriptionPlan: 'None',
+      subscriptionStatus: 'Inactive',
+      mrr: 0,
+      totalSpent: 0,
+      joinedDate: new Date().toISOString().split('T')[0],
+      registrationDate: new Date().toLocaleDateString('en-GB'),
+      country: dto.country || 'India',
+      themePreference: 'light',
+    };
+
+    if (customerIndex >= 0) {
+      existingCustomers[customerIndex] = newPendingCustomer;
+    } else {
+      existingCustomers.unshift(newPendingCustomer);
+    }
+    setItem(STORAGE_KEYS.CUSTOMERS, existingCustomers);
 
     return { email: cleanEmail };
   },
@@ -90,33 +122,45 @@ export const authService = {
     const pendingList = getItem<any[]>(STORAGE_KEYS.PENDING_REGISTRATIONS, []);
     const pending = pendingList.find((p) => p.email?.toLowerCase() === cleanEmail);
 
-    if (pending) {
-      const customerId = `CUS-2026-${Math.floor(100000 + Math.random() * 900000)}`;
-      const newUser: StoredUser = {
-        id: `usr-cust-${Date.now()}`,
-        customerId,
-        fullName: pending.fullName,
-        firstName: pending.firstName,
-        lastName: pending.lastName,
-        email: pending.email,
-        phoneNumber: pending.phoneNumber,
-        country: 'India',
-        role: 'Customer',
-        createdAt: new Date().toISOString(),
-        registrationDate: new Date().toLocaleDateString('en-GB'),
-        status: 'Verified',
-        currentPlan: 'Starter',
-        subscriptionStatus: 'Active',
-        passwordHash: pending.passwordHash,
-        themePreference: 'light',
-      };
+    const existingCustomers = getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
+    const existingCust = existingCustomers.find(c => c.email.toLowerCase() === cleanEmail);
 
-      const existingUsers = getItem<StoredUser[]>(STORAGE_KEYS.USERS, []);
+    const customerId = existingCust?.customerId || `CUS-2026-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    const newUser: StoredUser = {
+      id: existingCust?.id || `usr-cust-${Date.now()}`,
+      customerId,
+      fullName: pending?.fullName || existingCust?.name || cleanEmail,
+      firstName: pending?.firstName || existingCust?.firstName || cleanEmail.split('@')[0],
+      lastName: pending?.lastName || existingCust?.lastName || '',
+      email: cleanEmail,
+      phoneNumber: pending?.phoneNumber || existingCust?.phone || '',
+      country: pending?.country || existingCust?.country || 'India',
+      role: 'Customer',
+      createdAt: new Date().toISOString(),
+      registrationDate: new Date().toLocaleDateString('en-GB'),
+      status: 'Verified',
+      currentPlan: existingCust?.subscriptionPlan || 'None',
+      subscriptionStatus: existingCust?.subscriptionStatus || 'Inactive',
+      passwordHash: pending?.passwordHash || '',
+      themePreference: 'light',
+    };
+
+    const existingUsers = getItem<StoredUser[]>(STORAGE_KEYS.USERS, []);
+    const userIdx = existingUsers.findIndex(u => u.email.toLowerCase() === cleanEmail);
+    if (userIdx >= 0) {
+      existingUsers[userIdx] = newUser;
+    } else {
       existingUsers.push(newUser);
-      setItem(STORAGE_KEYS.USERS, existingUsers);
+    }
+    setItem(STORAGE_KEYS.USERS, existingUsers);
 
-      const existingCustomers = getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
-      existingCustomers.push({
+    // STEP 4: Update status to 'Verified' upon email verification. Subscription remains inactive.
+    if (existingCust) {
+      existingCust.status = 'Verified';
+      setItem(STORAGE_KEYS.CUSTOMERS, existingCustomers);
+    } else {
+      existingCustomers.unshift({
         id: newUser.id,
         customerId,
         name: newUser.fullName,
@@ -125,19 +169,20 @@ export const authService = {
         email: newUser.email,
         phone: newUser.phoneNumber || '',
         status: 'Verified',
-        subscriptionPlan: 'Starter',
+        subscriptionPlan: 'None',
+        subscriptionStatus: 'Inactive',
         mrr: 0,
         totalSpent: 0,
         joinedDate: new Date().toISOString().split('T')[0],
         registrationDate: newUser.registrationDate || '',
-        country: 'India',
+        country: newUser.country || 'India',
         themePreference: 'light',
       });
       setItem(STORAGE_KEYS.CUSTOMERS, existingCustomers);
-
-      // Remove from pending
-      setItem(STORAGE_KEYS.PENDING_REGISTRATIONS, pendingList.filter((p) => p.email?.toLowerCase() !== cleanEmail));
     }
+
+    // Remove from pending
+    setItem(STORAGE_KEYS.PENDING_REGISTRATIONS, pendingList.filter((p) => p.email?.toLowerCase() !== cleanEmail));
 
     return {
       success: true,
@@ -177,25 +222,37 @@ export const authService = {
     const cleanEmail = email.trim().toLowerCase();
     const cleanFullName = fullName?.trim();
 
-    // Call FastAPI Backend Placeholder API
-    await authApi.login({
+    // Admin login demo fallback check first
+    if (role === 'Admin' && cleanEmail === HARDCODED_ADMIN.email && password === HARDCODED_ADMIN.passwordHash) {
+      const { passwordHash, ...adminUser } = HARDCODED_ADMIN;
+      const session: AuthSession = {
+        user: adminUser,
+        token: `prod-jwt-token-admin-${Date.now()}`,
+      };
+      setItem(STORAGE_KEYS.AUTH, session);
+      return session;
+    }
+
+    // Call FastAPI Backend API
+    const apiResponse = await authApi.login({
       fullName: role === 'Customer' ? cleanFullName : undefined,
       email: cleanEmail,
       password,
     });
 
-    // Admin login demo fallback
-    if (role === 'Admin') {
-      if (cleanEmail === HARDCODED_ADMIN.email && password === HARDCODED_ADMIN.passwordHash) {
-        const { passwordHash, ...adminUser } = HARDCODED_ADMIN;
-        const session: AuthSession = {
-          user: adminUser,
-          token: `prod-jwt-token-admin-${Date.now()}`,
-        };
-        setItem(STORAGE_KEYS.AUTH, session);
-        return session;
+    if (apiResponse.success && apiResponse.data?.token && apiResponse.data?.user) {
+      const session: AuthSession = {
+        user: apiResponse.data.user,
+        token: apiResponse.data.token,
+      };
+      setItem(STORAGE_KEYS.AUTH, session);
+      return session;
+    }
+
+    if (apiResponse.error || (apiResponse.success === false && apiResponse.message)) {
+      if (apiResponse.error?.includes('Invalid') || apiResponse.message?.includes('Invalid')) {
+        throw new Error(apiResponse.message || apiResponse.error || 'Invalid email or password.');
       }
-      throw new Error('Invalid email or password.');
     }
 
     // Customer login check
@@ -264,6 +321,138 @@ export const authService = {
    */
   resetPassword: async (token: string, newPassword: string) => {
     return await authApi.resetPassword({ token, newPassword });
+  },
+
+  /**
+   * SOCIAL LOGIN & OAUTH 2.0 INTEGRATION
+   */
+  socialLogin: async (provider: 'Google' | 'Microsoft' | 'Apple'): Promise<AuthSession> => {
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    if (provider === 'Google') await authApi.googleLogin({});
+    else if (provider === 'Microsoft') await authApi.microsoftLogin({});
+    else if (provider === 'Apple') await authApi.appleLogin({});
+
+    const profiles: Record<'Google' | 'Microsoft' | 'Apple', { fullName: string; email: string; avatar: string }> = {
+      Google: {
+        fullName: 'Rohan Sharma',
+        email: 'rohan.sharma@techcorp.in',
+        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
+      },
+      Microsoft: {
+        fullName: 'Alex Morgan',
+        email: 'alex.morgan@microsoft.com',
+        avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
+      },
+      Apple: {
+        fullName: 'Priya Sundaram',
+        email: 'priya@datasolutions.com',
+        avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80',
+      },
+    };
+
+    const targetProfile = profiles[provider];
+    const cleanEmail = targetProfile.email.toLowerCase();
+
+    const users = getItem<StoredUser[]>(STORAGE_KEYS.USERS, []);
+    const existingUserIndex = users.findIndex((u) => u.email.toLowerCase() === cleanEmail);
+
+    let sessionUser: User;
+
+    if (existingUserIndex !== -1) {
+      const existingUser = users[existingUserIndex];
+      const linked = new Set(existingUser.linkedProviders || []);
+      linked.add(provider);
+
+      existingUser.fullName = targetProfile.fullName;
+      existingUser.profilePicture = targetProfile.avatar;
+      existingUser.linkedProviders = Array.from(linked);
+      existingUser.lastLoginTime = new Date().toISOString();
+
+      users[existingUserIndex] = existingUser;
+      setItem(STORAGE_KEYS.USERS, users);
+
+      const { passwordHash, ...safeUser } = existingUser;
+      sessionUser = safeUser;
+    } else {
+      const customerId = `CUS-2026-${Math.floor(100000 + Math.random() * 900000)}`;
+      const newUser: StoredUser = {
+        id: `usr-cust-${Date.now()}`,
+        customerId,
+        fullName: targetProfile.fullName,
+        firstName: targetProfile.fullName.split(' ')[0],
+        lastName: targetProfile.fullName.split(' ').slice(1).join(' ') || 'User',
+        email: cleanEmail,
+        role: 'Customer',
+        createdAt: new Date().toISOString(),
+        registrationDate: new Date().toLocaleDateString('en-GB'),
+        status: 'Verified',
+        currentPlan: 'None',
+        subscriptionStatus: 'Inactive',
+        passwordHash: '',
+        authProvider: provider,
+        linkedProviders: [provider],
+        profilePicture: targetProfile.avatar,
+        lastLoginTime: new Date().toISOString(),
+      };
+
+      users.push(newUser);
+      setItem(STORAGE_KEYS.USERS, users);
+
+      const customers = getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
+      if (!customers.some((c) => c.email.toLowerCase() === cleanEmail)) {
+        customers.unshift({
+          id: newUser.id,
+          customerId,
+          name: targetProfile.fullName,
+          firstName: newUser.firstName,
+          lastName: newUser.lastName,
+          email: cleanEmail,
+          phone: '+91 9876543210',
+          status: 'Verified',
+          subscriptionPlan: 'None',
+          subscriptionStatus: 'Inactive',
+          mrr: 0,
+          totalSpent: 0,
+          joinedDate: new Date().toISOString().split('T')[0],
+          country: 'India',
+        });
+        setItem(STORAGE_KEYS.CUSTOMERS, customers);
+      }
+
+      const { passwordHash, ...safeUser } = newUser;
+      sessionUser = safeUser;
+    }
+
+    const session: AuthSession = {
+      user: sessionUser,
+      token: `prod-oauth-jwt-${provider.toLowerCase()}-${Date.now()}`,
+    };
+
+    setItem(STORAGE_KEYS.AUTH, session);
+    return session;
+  },
+
+  linkProvider: async (email: string, provider: 'Google' | 'Microsoft' | 'Apple') => {
+    await authApi.linkProvider({ email, provider });
+    const users = getItem<StoredUser[]>(STORAGE_KEYS.USERS, []);
+    const idx = users.findIndex((u) => u.email.toLowerCase() === email.toLowerCase());
+    if (idx !== -1) {
+      const linked = new Set(users[idx].linkedProviders || []);
+      linked.add(provider);
+      users[idx].linkedProviders = Array.from(linked);
+      setItem(STORAGE_KEYS.USERS, users);
+    }
+  },
+
+  unlinkProvider: async (email: string, provider: 'Google' | 'Microsoft' | 'Apple') => {
+    await authApi.unlinkProvider({ email, provider });
+    const users = getItem<StoredUser[]>(STORAGE_KEYS.USERS, []);
+    const idx = users.findIndex((u) => u.email.toLowerCase() === email.toLowerCase());
+    if (idx !== -1 && users[idx].linkedProviders) {
+      users[idx].linkedProviders = users[idx].linkedProviders!.filter((p) => p !== provider);
+      setItem(STORAGE_KEYS.USERS, users);
+    }
   },
 };
 

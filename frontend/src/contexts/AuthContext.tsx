@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, UserRole, RegisterCustomerDTO, AuthSession } from '../types/auth';
+import { User, UserRole, RegisterCustomerDTO, AuthSession, SocialProvider } from '../types/auth';
 import { authService } from '../services/authService';
+import { STORAGE_KEYS, setItem } from '../utils/storage';
 
 interface AuthContextType {
   user: User | null;
@@ -8,6 +9,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string, role: UserRole, fullName?: string) => Promise<AuthSession>;
+  socialLogin: (provider: SocialProvider) => Promise<AuthSession>;
   logout: () => void;
   register: (dto: RegisterCustomerDTO) => Promise<{ email: string }>;
   verifyOTP: (email: string, otp: string) => Promise<{ success: boolean; message: string }>;
@@ -36,6 +38,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return session;
   };
 
+  const socialLogin = async (provider: SocialProvider): Promise<AuthSession> => {
+    const session = await authService.socialLogin(provider);
+    setUser(session.user);
+    return session;
+  };
+
   const logout = () => {
     authService.logout();
     setUser(null);
@@ -53,39 +61,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return await authService.resendOTP(email);
   };
 
-  const updateUser = (updatedFields: Partial<User>) => {
-    setUser((prev) => {
-      if (!prev) return null;
-      const newObj = { ...prev, ...updatedFields };
-      const currentSession = authService.getCurrentSession();
-      if (currentSession) {
-        currentSession.user = newObj;
-        localStorage.setItem('billing_auth', JSON.stringify(currentSession));
+  const updateUser = (updatedUser: Partial<User>) => {
+    if (user) {
+      const newUserData = { ...user, ...updatedUser };
+      setUser(newUserData);
+      const session = authService.getCurrentSession();
+      if (session) {
+        session.user = newUserData;
+        setItem(STORAGE_KEYS.AUTH, session);
       }
-      return newObj;
-    });
+    }
   };
 
   const getCurrentUser = () => user;
 
-  const value: AuthContextType = {
-    user,
-    role: user?.role || null,
-    isAuthenticated: !!user,
-    isLoading,
-    login,
-    logout,
-    register,
-    verifyOTP,
-    resendOTP,
-    updateUser,
-    getCurrentUser,
-  };
+  const role = user?.role || null;
+  const isAuthenticated = !!user;
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        role,
+        isAuthenticated,
+        isLoading,
+        login,
+        socialLogin,
+        logout,
+        register,
+        verifyOTP,
+        resendOTP,
+        updateUser,
+        getCurrentUser,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
-export const useAuth = (): AuthContextType => {
+export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
@@ -93,3 +108,4 @@ export const useAuth = (): AuthContextType => {
   return context;
 };
 
+export const useAuthContext = useAuth;

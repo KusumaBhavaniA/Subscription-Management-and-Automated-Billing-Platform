@@ -69,11 +69,11 @@ export const NotificationDropdown: React.FC = () => {
             transition={{ duration: 0.15, ease: 'easeOut' }}
             className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-white dark:bg-[#0F172A] border border-[#CBD5E1] dark:border-[#334155] shadow-2xl z-[100] overflow-hidden text-[#0F172A] dark:text-[#F8FAFC]"
           >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-[#CBD5E1] dark:border-[#334155] bg-slate-50 dark:bg-[#1E293B]">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[#CBD5E1] dark:border-[#334155] bg-slate-100 dark:bg-[#1E293B]">
               <div className="flex items-center gap-2">
                 <span className="font-bold text-sm text-[#0F172A] dark:text-[#F8FAFC]">Notifications</span>
                 {unreadCount > 0 && (
-                  <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-primary/15 text-primary">
+                  <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
                     {unreadCount} new
                   </span>
                 )}
@@ -89,7 +89,7 @@ export const NotificationDropdown: React.FC = () => {
               )}
             </div>
 
-            <div className="max-h-80 overflow-y-auto divide-y divide-[#E2E8F0] dark:divide-[#334155]">
+            <div className="max-h-80 overflow-y-auto divide-y divide-[#E2E8F0] dark:divide-[#334155] bg-white dark:bg-[#0F172A]">
               {notifications.length === 0 ? (
                 <div className="p-6 text-center text-xs font-medium text-[#64748B] dark:text-[#94A3B8]">
                   No notifications
@@ -101,8 +101,8 @@ export const NotificationDropdown: React.FC = () => {
                     onClick={() => markAsRead(item.id)}
                     className={`p-3.5 flex items-start gap-3 transition-colors cursor-pointer ${
                       !item.isRead
-                        ? 'bg-blue-50/50 dark:bg-blue-950/20 hover:bg-blue-50 dark:hover:bg-blue-950/40'
-                        : 'hover:bg-slate-50 dark:hover:bg-[#1E293B]'
+                        ? 'bg-blue-50 dark:bg-[#1E293B] hover:bg-blue-100 dark:hover:bg-[#334155]'
+                        : 'bg-white dark:bg-[#0F172A] hover:bg-slate-50 dark:hover:bg-[#1E293B]'
                     }`}
                   >
                     <div className="mt-0.5">{getIcon(item.type)}</div>

@@ -1,4 +1,20 @@
-export type NotificationType = 'Invoice Paid' | 'Subscription Renewed' | 'Payment Successful' | 'Payment Failed' | 'Subscription Expiring';
+export type NotificationType =
+  | 'Invoice Generated'
+  | 'Payment Successful'
+  | 'Payment Failed'
+  | 'Subscription Assigned'
+  | 'Subscription Upgraded'
+  | 'Subscription Downgraded'
+  | 'Subscription Renewed'
+  | 'Subscription Paused'
+  | 'Subscription Cancelled'
+  | 'Subscription Expired'
+  | 'Subscription Updated'
+  | 'Support Reply'
+  | 'Ticket Assigned'
+  | 'Ticket Closed'
+  | 'Invoice Paid'
+  | 'Subscription Expiring';
 
 export interface NotificationItem {
   id: string;
