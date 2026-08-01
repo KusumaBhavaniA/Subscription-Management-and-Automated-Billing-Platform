@@ -14,6 +14,8 @@ interface AuthContextType {
   register: (dto: RegisterCustomerDTO) => Promise<{ email: string }>;
   verifyOTP: (email: string, otp: string) => Promise<{ success: boolean; message: string }>;
   resendOTP: (email: string) => Promise<{ success: boolean; message: string }>;
+  forgotPassword: (email: string) => Promise<{ success: boolean; message: string }>;
+  resetPassword: (token: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
   updateUser: (updatedUser: Partial<User>) => void;
   getCurrentUser: () => User | null;
 }
@@ -24,16 +26,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
+  // On mount: validate stored JWT against GET /auth/me so expired tokens are
+  // caught immediately and the user object is always fresh from the DB.
   useEffect(() => {
-    const session = authService.getCurrentSession();
-    if (session && session.user) {
-      setUser(session.user);
-    }
-    setIsLoading(false);
+    const restoreSession = async () => {
+      const session = authService.getCurrentSession();
+      if (!session?.token) {
+        setIsLoading(false);
+        return;
+      }
+      const freshUser = await authService.fetchCurrentUser();
+      if (freshUser) {
+        setUser(freshUser);
+      } else {
+        authService.logout();
+      }
+      setIsLoading(false);
+    };
+    restoreSession();
   }, []);
 
-  const login = async (email: string, password: string, role: UserRole, fullName?: string): Promise<AuthSession> => {
-    const session = await authService.login(email, password, role, fullName);
+  const login = async (
+    email: string,
+    password: string,
+    role: UserRole,
+    _fullName?: string,
+  ): Promise<AuthSession> => {
+    const session = await authService.login(email, password, role);
     setUser(session.user);
     return session;
   };
@@ -61,46 +80,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return await authService.resendOTP(email);
   };
 
-  const updateUser = (updatedUser: Partial<User>) => {
-    if (user) {
-      const newUserData = { ...user, ...updatedUser };
-      setUser(newUserData);
-      const session = authService.getCurrentSession();
-      if (session) {
-        session.user = newUserData;
-        setItem(STORAGE_KEYS.AUTH, session);
+  const forgotPassword = async (email: string): Promise<{ success: boolean; message: string }> => {
+    const response = await authService.forgotPassword(email);
+    return { success: response.success, message: response.message };
+  };
+
+  const resetPassword = async (
+    token: string,
+    newPassword: string,
+  ): Promise<{ success: boolean; message: string }> => {
+    const response = await authService.resetPassword(token, newPassword);
+    return { success: response.success, message: response.message };
+  };
+
+  const updateUser = (updatedFields: Partial<User>) => {
+    setUser((prev) => {
+      if (!prev) return null;
+      const updated = { ...prev, ...updatedFields };
+      const currentSession = authService.getCurrentSession();
+      if (currentSession) {
+        setItem(STORAGE_KEYS.AUTH, { ...currentSession, user: updated });
       }
-    }
+      return updated;
+    });
   };
 
   const getCurrentUser = () => user;
 
-  const role = user?.role || null;
-  const isAuthenticated = !!user;
+  const value: AuthContextType = {
+    user,
+    role: user?.role ?? null,
+    isAuthenticated: !!user,
+    isLoading,
+    login,
+    socialLogin,
+    logout,
+    register,
+    verifyOTP,
+    resendOTP,
+    forgotPassword,
+    resetPassword,
+    updateUser,
+    getCurrentUser,
+  };
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        role,
-        isAuthenticated,
-        isLoading,
-        login,
-        socialLogin,
-        logout,
-        register,
-        verifyOTP,
-        resendOTP,
-        updateUser,
-        getCurrentUser,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-export const useAuth = () => {
+export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
@@ -108,4 +135,5 @@ export const useAuth = () => {
   return context;
 };
 
+// Alias kept for backwards compatibility with any teammate code using useAuthContext
 export const useAuthContext = useAuth;

@@ -1,24 +1,21 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Mail, Lock, ShieldCheck, UserCheck, AlertCircle, ArrowRight, ArrowUpRight, CheckCircle2 } from 'lucide-react';
+import { Mail, Lock, ShieldCheck, UserCheck, AlertCircle, ArrowRight, ArrowUpRight, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { UserRole } from '../../types/auth';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { BPLogo } from '../../components/common/BPLogo';
 import { SocialAuthButtons } from '../../components/auth/SocialAuthButtons';
-import { Modal } from '../../components/common/Modal';
 
 export const LoginPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<UserRole>('Customer');
-  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isUnverified, setIsUnverified] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
 
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -30,7 +27,6 @@ export const LoginPage: React.FC = () => {
     setActiveTab(role);
     setError(null);
     setIsUnverified(false);
-    setFullName('');
     setEmail('');
     setPassword('');
   };
@@ -44,55 +40,27 @@ export const LoginPage: React.FC = () => {
     setError(null);
     setIsUnverified(false);
 
-    if (activeTab === 'Customer') {
-      if (!fullName.trim()) {
-        setError('Full Name is required.');
-        return;
-      }
-      if (fullName.trim().length < 3) {
-        setError('Full Name must be at least 3 characters.');
-        return;
-      }
-      if (!email.trim()) {
-        setError('Email Address is required.');
-        return;
-      }
-      if (!validateEmailFormat(email)) {
-        setError('Please enter a valid email address.');
-        return;
-      }
-      if (!password) {
-        setError('Password is required.');
-        return;
-      }
-      if (password.length < 8) {
-        setError('Password must be at least 8 characters.');
-        return;
-      }
-    } else {
-      if (!email.trim()) {
-        setError('Email Address is required.');
-        return;
-      }
-      if (!validateEmailFormat(email)) {
-        setError('Please enter a valid email address.');
-        return;
-      }
-      if (!password) {
-        setError('Password is required.');
-        return;
-      }
+    if (!email.trim()) {
+      setError('Email Address is required.');
+      return;
+    }
+    if (!validateEmailFormat(email)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+    if (!password) {
+      setError('Password is required.');
+      return;
+    }
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.');
+      return;
     }
 
     setIsLoading(true);
 
     try {
-      const session = await login(
-        email,
-        password,
-        activeTab,
-        activeTab === 'Customer' ? fullName : undefined
-      );
+      const session = await login(email, password, activeTab);
       if (session.user.role === 'Admin') {
         navigate('/admin/dashboard');
       } else {
@@ -101,7 +69,7 @@ export const LoginPage: React.FC = () => {
     } catch (err: any) {
       const msg = err.message || 'Invalid email or password.';
       setError(msg);
-      if (msg.includes('verify your email')) {
+      if (msg.toLowerCase().includes('verify your email')) {
         setIsUnverified(true);
       }
     } finally {
@@ -200,18 +168,7 @@ export const LoginPage: React.FC = () => {
               )}
             </AnimatePresence>
 
-            {/* CUSTOMER FIELDS: 1. Full Name 2. Email Address 3. Password */}
-            {activeTab === 'Customer' && (
-              <Input
-                label="Full Name"
-                type="text"
-                placeholder="Rohan Sharma"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                leftIcon={<User className="w-4 h-4" />}
-                required
-              />
-            )}
+            {/* Email + Password — same fields for both roles */}
 
             <Input
               label="Email Address"
@@ -237,7 +194,7 @@ export const LoginPage: React.FC = () => {
             <div className="flex items-center justify-between text-xs pt-0.5">
               <button
                 type="button"
-                onClick={() => setIsForgotPasswordOpen(true)}
+                onClick={() => navigate('/forgot-password')}
                 className="text-secondaryText font-semibold hover:text-primary hover:underline transition-colors cursor-pointer"
               >
                 Forgot Password?
@@ -276,48 +233,6 @@ export const LoginPage: React.FC = () => {
           </p>
         </div>
       </motion.div>
-
-      {/* Forgot Password Modal */}
-      <Modal
-        isOpen={isForgotPasswordOpen}
-        onClose={() => setIsForgotPasswordOpen(false)}
-        title="Forgot Password"
-        maxWidth="sm"
-      >
-        <div className="space-y-4">
-          <p className="text-xs text-secondaryText leading-relaxed font-medium">
-            Enter your account email address. Password reset instructions will be sent via FastAPI backend (<code className="font-mono text-primary font-bold">POST /api/auth/forgot-password</code>).
-          </p>
-          <Input
-            label="Email Address"
-            type="email"
-            placeholder="user@company.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            leftIcon={<Mail className="w-4 h-4" />}
-          />
-          <div className="flex items-center gap-2 justify-end pt-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsForgotPasswordOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => {
-                setIsForgotPasswordOpen(false);
-                setError(null);
-                alert(`Password reset requested for ${email || 'your email'}. Check your inbox.`);
-              }}
-            >
-              Send Reset Link
-            </Button>
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 };

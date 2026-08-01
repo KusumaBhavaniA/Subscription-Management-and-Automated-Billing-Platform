@@ -16,6 +16,8 @@ import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
 import { VerifyEmailPage } from './pages/auth/VerifyEmailPage';
 import { AuthCallbackPage } from './pages/auth/AuthCallbackPage';
+import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
+import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
 
 import { AdminDashboard } from './pages/dashboard/AdminDashboard';
 import { CustomerDashboard } from './pages/dashboard/CustomerDashboard';
@@ -57,7 +59,11 @@ const RootRedirect: React.FC = () => {
 
 export const AppContent: React.FC = () => {
   useEffect(() => {
-    initializeMockData();
+    // Only seed mock data in development — keeps demo UX for teammates
+    // while not polluting production localStorage
+    if (process.env.NODE_ENV === 'development') {
+      initializeMockData();
+    }
   }, []);
 
   return (
@@ -68,6 +74,8 @@ export const AppContent: React.FC = () => {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/auth/callback" element={<AuthCallbackPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
 
         {/* Protected App Routes */}
         <Route element={<ProtectedRoute />}>

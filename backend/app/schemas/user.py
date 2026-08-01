@@ -13,13 +13,11 @@ class UserCreate(BaseModel):
     acceptTerms: bool
 
     @model_validator(mode="after")
-    def validate_passwords(self):
+    def validate_registration(self):
         if self.password != self.confirmPassword:
             raise ValueError("Passwords do not match")
-
         if not self.acceptTerms:
             raise ValueError("You must accept the terms and conditions")
-
         return self
 
 
@@ -30,7 +28,9 @@ class UserResponse(BaseModel):
     email: EmailStr
     phone_number: str | None = None
     country: str | None = None
+    role: str
     is_active: bool
+    is_verified: bool
 
     class Config:
         from_attributes = True
@@ -44,6 +44,10 @@ class Token(BaseModel):
 class OTPVerifyRequest(BaseModel):
     email: EmailStr
     otp: str
+
+
+class ResendOTPRequest(BaseModel):
+    email: EmailStr
 
 
 class ResetPasswordRequest(BaseModel):

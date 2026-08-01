@@ -1,3 +1,14 @@
+/**
+ * authApi.ts
+ * ----------
+ * Direct HTTP calls to the FastAPI authentication endpoints.
+ * All methods use the shared apiClient (axios instance) which:
+ *   - points to http://localhost:8000
+ *   - automatically attaches the stored JWT as Bearer token
+ *   - redirects to /login on 401
+ */
+
+import { apiClient } from './apiClient';
 import { RegisterCustomerDTO, OTPVerificationDTO, AuthSession, SocialProvider } from '../../types/auth';
 
 export interface ApiResponse<T = any> {
@@ -7,230 +18,168 @@ export interface ApiResponse<T = any> {
   error?: string;
 }
 
+// Normalise axios errors into a plain Error with a readable message
+function extractError(err: any): never {
+  const detail = err?.response?.data?.detail;
+  if (detail) throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
+  const message = err?.response?.data?.message || err?.message || 'An unexpected error occurred.';
+  throw new Error(message);
+}
+
 export const authApi = {
-  /**
-   * OAuth 2.0 Provider Login URLs
-   */
+
+  // -------------------------------------------------------------------------
+  // OAuth redirect URLs — used by SocialAuthButtons to kick off OAuth flow
+  // -------------------------------------------------------------------------
   getOAuthLoginUrl: (provider: SocialProvider): string => {
     switch (provider) {
-      case 'Google':
-        return '/auth/google/login';
-      case 'Microsoft':
-        return '/auth/microsoft/login';
-      case 'Apple':
-        return '/auth/apple/login';
+      case 'Google':    return 'http://localhost:8000/auth/google/login';
+      case 'Microsoft': return 'http://localhost:8000/auth/microsoft/login';
+      case 'Apple':     return 'http://localhost:8000/auth/apple/login';
     }
   },
 
-  register: async (payload: RegisterCustomerDTO): Promise<ApiResponse<{ email: string }>> => {
+  // -------------------------------------------------------------------------
+  // POST /auth/register
+  // -------------------------------------------------------------------------
+  register: async (
+    payload: RegisterCustomerDTO,
+  ): Promise<ApiResponse<{ email: string }>> => {
     try {
-      const response = await fetch('/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+      const { data } = await apiClient.post('/auth/register', {
+        firstName: payload.firstName,
+        lastName: payload.lastName,
+        email: payload.email,
+        phoneNumber: payload.phoneNumber,
+        password: payload.password,
+        confirmPassword: payload.confirmPassword,
+        country: payload.country ?? 'India',
+        phoneCode: payload.phoneCode ?? '+91',
+        acceptTerms: payload.acceptTerms,
       });
-      const data = await response.json();
-      if (!response.ok) {
-        return {
-          success: false,
-          message: typeof data.detail === 'string' ? data.detail : (data.message || 'Registration failed.'),
-          error: typeof data.detail === 'string' ? data.detail : data.message,
-        };
-      }
-      return data;
-    } catch (err: any) {
-      return {
-        success: true,
-        message: "We've sent a verification code to your email.",
-        data: { email: payload.email },
-      };
-    }
-  },
-
-  verifyOTP: async (payload: OTPVerificationDTO): Promise<ApiResponse<{ verified: boolean }>> => {
-    return {
-      success: true,
-      message: 'Your account has been verified successfully.',
-      data: { verified: true },
-    };
-  },
-
-  verifyOtp: async (payload: OTPVerificationDTO): Promise<ApiResponse<{ verified: boolean }>> => {
-    return authApi.verifyOTP(payload);
-  },
-
-  resendOTP: async (payload: { email: string }): Promise<ApiResponse<{ otpSent: boolean }>> => {
-    return {
-      success: true,
-      message: "We've sent a verification code to your email.",
-      data: { otpSent: true },
-    };
-  },
-
-  resendOtp: async (payload: { email: string }): Promise<ApiResponse<{ otpSent: boolean }>> => {
-    return authApi.resendOTP(payload);
-  },
-
-  login: async (payload: { fullName?: string; email: string; password: string }): Promise<ApiResponse<AuthSession>> => {
-    try {
-      const response = await fetch('/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: payload.email, password: payload.password }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        return {
-          success: false,
-          message: typeof data.detail === 'string' ? data.detail : (data.message || 'Login failed.'),
-          error: typeof data.detail === 'string' ? data.detail : data.message,
-        };
-      }
-      if (data.success && data.data?.access_token && data.data?.user) {
-        return {
-          success: true,
-          message: data.message || 'Login successful.',
-          data: {
-            user: data.data.user,
-            token: data.data.access_token,
-          },
-        };
-      }
-      return data;
-    } catch (err: any) {
-      return {
-        success: true,
-        message: 'Login successful.',
-      };
-    }
-  },
-
-  /**
-   * Endpoint: POST /auth/google
-   */
-  googleLogin: async (payload: { token?: string }): Promise<ApiResponse<{ provider: 'Google' }>> => {
-    try {
-      const response = await fetch('/auth/google', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await response.json();
       return data;
     } catch (err) {
-      return {
-        success: true,
-        message: 'Authenticated with Google successfully.',
-        data: { provider: 'Google' },
-      };
+      extractError(err);
     }
   },
 
-  /**
-   * Endpoint: POST /auth/microsoft
-   */
-  microsoftLogin: async (payload: { token?: string }): Promise<ApiResponse<{ provider: 'Microsoft' }>> => {
+  // -------------------------------------------------------------------------
+  // POST /auth/verify-otp
+  // -------------------------------------------------------------------------
+  verifyOtp: async (
+    payload: OTPVerificationDTO,
+  ): Promise<ApiResponse<{ verified: boolean }>> => {
     try {
-      const response = await fetch('/auth/microsoft', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+      const { data } = await apiClient.post('/auth/verify-otp', {
+        email: payload.email,
+        otp: payload.otp,
       });
-      const data = await response.json();
       return data;
     } catch (err) {
-      return {
-        success: true,
-        message: 'Authenticated with Microsoft successfully.',
-        data: { provider: 'Microsoft' },
-      };
+      extractError(err);
     }
   },
 
-  /**
-   * Endpoint: POST /auth/apple
-   */
-  appleLogin: async (payload: { token?: string }): Promise<ApiResponse<{ provider: 'Apple' }>> => {
+  // -------------------------------------------------------------------------
+  // POST /auth/resend-otp
+  // -------------------------------------------------------------------------
+  resendOtp: async (
+    payload: { email: string },
+  ): Promise<ApiResponse<{ otpSent: boolean }>> => {
     try {
-      const response = await fetch('/auth/apple', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+      const { data } = await apiClient.post('/auth/resend-otp', {
+        email: payload.email,
       });
-      const data = await response.json();
       return data;
     } catch (err) {
-      return {
-        success: true,
-        message: 'Authenticated with Apple successfully.',
-        data: { provider: 'Apple' },
-      };
+      extractError(err);
     }
   },
 
-  /**
-   * Endpoint: POST /auth/link-provider
-   */
-  linkProvider: async (payload: { email: string; provider: SocialProvider }): Promise<ApiResponse<{ linked: boolean }>> => {
+  // -------------------------------------------------------------------------
+  // POST /auth/login
+  // -------------------------------------------------------------------------
+  login: async (payload: {
+    email: string;
+    password: string;
+  }): Promise<ApiResponse<AuthSession & { access_token: string; token_type: string }>> => {
     try {
-      const response = await fetch('/auth/link-provider', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+      const { data } = await apiClient.post('/auth/login', {
+        email: payload.email,
+        password: payload.password,
       });
-      const data = await response.json();
       return data;
     } catch (err) {
-      return {
-        success: true,
-        message: `${payload.provider} connected successfully.`,
-        data: { linked: true },
-      };
+      extractError(err);
     }
   },
 
-  /**
-   * Endpoint: POST /auth/unlink-provider
-   */
-  unlinkProvider: async (payload: { email: string; provider: SocialProvider }): Promise<ApiResponse<{ unlinked: boolean }>> => {
+  // -------------------------------------------------------------------------
+  // GET /auth/me
+  // -------------------------------------------------------------------------
+  getMe: async () => {
     try {
-      const response = await fetch('/auth/unlink-provider', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await response.json();
+      const { data } = await apiClient.get('/auth/me');
       return data;
     } catch (err) {
-      return {
-        success: true,
-        message: `${payload.provider} disconnected successfully.`,
-        data: { unlinked: true },
-      };
+      extractError(err);
     }
   },
 
-  forgotPassword: async (payload: { email: string }): Promise<ApiResponse<{ emailSent: boolean }>> => {
-    return {
-      success: true,
-      message: 'Password reset instructions sent to your email address.',
-      data: { emailSent: true },
-    };
+  // -------------------------------------------------------------------------
+  // POST /auth/forgot-password
+  // -------------------------------------------------------------------------
+  forgotPassword: async (
+    payload: { email: string },
+  ): Promise<ApiResponse<{ emailSent: boolean }>> => {
+    try {
+      const { data } = await apiClient.post('/auth/forgot-password', {
+        email: payload.email,
+      });
+      return data;
+    } catch (err) {
+      extractError(err);
+    }
   },
 
-  resetPassword: async (payload: { token: string; newPassword: string }): Promise<ApiResponse<{ reset: boolean }>> => {
-    return {
-      success: true,
-      message: 'Password has been reset successfully.',
-      data: { reset: true },
-    };
+  // -------------------------------------------------------------------------
+  // POST /auth/reset-password
+  // -------------------------------------------------------------------------
+  resetPassword: async (payload: {
+    token: string;
+    newPassword: string;
+  }): Promise<ApiResponse<{ reset: boolean }>> => {
+    try {
+      const { data } = await apiClient.post('/auth/reset-password', {
+        token: payload.token,
+        newPassword: payload.newPassword,
+      });
+      return data;
+    } catch (err) {
+      extractError(err);
+    }
   },
 
+  // -------------------------------------------------------------------------
+  // POST /auth/logout
+  // -------------------------------------------------------------------------
   logout: async (): Promise<ApiResponse<{ loggedOut: boolean }>> => {
-    return {
-      success: true,
-      message: 'Logged out successfully.',
-      data: { loggedOut: true },
-    };
+    try {
+      const { data } = await apiClient.post('/auth/logout');
+      return data;
+    } catch {
+      return { success: true, message: 'Logged out.', data: { loggedOut: true } };
+    }
+  },
+
+  // -------------------------------------------------------------------------
+  // Provider link/unlink — stubs until backend OAuth endpoints are ready
+  // -------------------------------------------------------------------------
+  linkProvider: async (payload: { email: string; provider: SocialProvider }): Promise<ApiResponse<{ linked: boolean }>> => {
+    return { success: true, message: `${payload.provider} connected.`, data: { linked: true } };
+  },
+
+  unlinkProvider: async (payload: { email: string; provider: SocialProvider }): Promise<ApiResponse<{ unlinked: boolean }>> => {
+    return { success: true, message: `${payload.provider} disconnected.`, data: { unlinked: true } };
   },
 };
