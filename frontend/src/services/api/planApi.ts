@@ -1,6 +1,5 @@
 import { Plan } from '../../types/plan';
-import { STORAGE_KEYS, getItem, setItem } from '../../utils/storage';
-import { INITIAL_PLANS } from '../mockDataService';
+const BASE_URL = "http://127.0.0.1:8000";
 
 export interface PlanPayload {
   name: string;
@@ -18,62 +17,152 @@ export interface PlanPayload {
 
 export const planApi = {
   getPlans: async (): Promise<Plan[]> => {
-    return getItem<Plan[]>(STORAGE_KEYS.PLANS, INITIAL_PLANS);
-  },
+    const response = await fetch(`${BASE_URL}/plans`);
 
+    if (!response.ok) {
+        throw new Error("Failed to fetch plans");
+    }
+
+    const plans = await response.json();
+
+return plans.map((plan: any) => ({
+    id: plan.id.toString(),
+    name: plan.name,
+    description: plan.description,
+    priceMonthly: plan.price,
+    priceYearly: plan.price * 12,
+    features: [],
+    isPopular: false,
+    activeSubscribers: 0,
+    maxCustomers: "",
+    storage: "",
+    apiAccess: "",
+    supportLevel: "",
+    isEnabled: plan.active
+}));
+},
   createPlan: async (payload: PlanPayload): Promise<Plan> => {
-    const list = getItem<Plan[]>(STORAGE_KEYS.PLANS, INITIAL_PLANS);
-    const newPlan: Plan = {
-      id: `plan-${Date.now()}`,
-      name: payload.name.trim(),
-      description: payload.description.trim(),
-      priceMonthly: payload.priceMonthly,
-      priceYearly: payload.priceYearly,
-      features: payload.features,
-      maxCustomers: payload.maxCustomers || '1,000 Customers',
-      storage: payload.storage || '50 GB Storage',
-      apiAccess: payload.apiAccess || 'Standard REST API',
-      supportLevel: payload.supportLevel || '24/7 Email Support',
-      isEnabled: payload.isEnabled !== undefined ? payload.isEnabled : true,
-      isPopular: payload.isPopular || false,
-      activeSubscribers: 0,
-    };
-    list.push(newPlan);
-    setItem(STORAGE_KEYS.PLANS, list);
-    return newPlan;
-  },
+
+    const response = await fetch(`${BASE_URL}/plans/`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            name: payload.name,
+            description: payload.description,
+            price: payload.priceMonthly,
+            currency: "INR",
+            interval: "monthly",
+            trial_days: 0,
+            active: payload.isEnabled ?? true
+        })
+    });
+
+    if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || "Failed to create plan");
+}
+
+    const plan = await response.json();
+
+return {
+    id: plan.id.toString(),
+    name: plan.name,
+    description: plan.description,
+    priceMonthly: plan.price,
+    priceYearly: plan.price * 12,
+    features: [],
+    isPopular: false,
+    activeSubscribers: 0,
+    maxCustomers: "",
+    storage: "",
+    apiAccess: "",
+    supportLevel: "",
+    isEnabled: plan.active
+};
+},
 
   updatePlan: async (planId: string, payload: Partial<PlanPayload>): Promise<Plan> => {
-    const list = getItem<Plan[]>(STORAGE_KEYS.PLANS, INITIAL_PLANS);
-    const idx = list.findIndex((p) => p.id === planId);
-    if (idx === -1) throw new Error('Plan not found');
 
-    const updated = {
-      ...list[idx],
-      ...payload,
-      name: payload.name ? payload.name.trim() : list[idx].name,
-      description: payload.description ? payload.description.trim() : list[idx].description,
-    };
-    list[idx] = updated;
-    setItem(STORAGE_KEYS.PLANS, list);
-    return updated;
-  },
+    const response = await fetch(`${BASE_URL}/plans/${planId}`, {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            name: payload.name,
+            description: payload.description,
+            price: payload.priceMonthly,
+            currency: "INR",
+            interval: "monthly",
+            trial_days: 0,
+            active: payload.isEnabled
+        })
+    });
 
-  toggleEnablePlan: async (planId: string): Promise<Plan> => {
-    const list = getItem<Plan[]>(STORAGE_KEYS.PLANS, INITIAL_PLANS);
-    const idx = list.findIndex((p) => p.id === planId);
-    if (idx === -1) throw new Error('Plan not found');
+    if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || "Failed to update plan");
+}
 
-    const currentStatus = list[idx].isEnabled !== undefined ? list[idx].isEnabled : true;
-    list[idx].isEnabled = !currentStatus;
-    setItem(STORAGE_KEYS.PLANS, list);
-    return list[idx];
-  },
+    const plan = await response.json();
+
+return {
+    id: plan.id.toString(),
+    name: plan.name,
+    description: plan.description,
+    priceMonthly: plan.price,
+    priceYearly: plan.price * 12,
+    features: [],
+    isPopular: false,
+    activeSubscribers: 0,
+    maxCustomers: "",
+    storage: "",
+    apiAccess: "",
+    supportLevel: "",
+    isEnabled: plan.active
+};
+},
+
+  toggleEnablePlan: async (
+    planId: string,
+    isEnabled: boolean
+): Promise<{ message: string }> => {
+
+    const endpoint = isEnabled
+        ? "deactivate"
+        : "activate";
+
+    const response = await fetch(
+        `${BASE_URL}/plans/${planId}/${endpoint}`,
+        {
+            method: "PUT"
+        }
+    );
+
+    if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || "Failed to change status");
+}
+
+    return await response.json();
+},
 
   deletePlan: async (planId: string): Promise<boolean> => {
-    const list = getItem<Plan[]>(STORAGE_KEYS.PLANS, INITIAL_PLANS);
-    const filtered = list.filter((p) => p.id !== planId);
-    setItem(STORAGE_KEYS.PLANS, filtered);
+
+    const response = await fetch(
+        `${BASE_URL}/plans/${planId}`,
+        {
+            method: "DELETE"
+        }
+    );
+
+    if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || "Failed to delete plan");
+}
+
     return true;
-  },
-};
+},
+}
