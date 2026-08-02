@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="The requested page could not be found in the Billing Platform workspace." />
+    <title>Billing Platform - 404 Page Not Found</title>
+
+    <!-- CSS Dependencies -->
+    <link rel="stylesheet" href="../css/style.css" />
+
+    <!-- JavaScript Application Modules -->
+    <script defer src="../js/services/api.js"></script>
+    <script defer src="../js/utils.js"></script>
+    <script defer src="../js/theme.js"></script>
+    <script defer src="../js/auth.js"></script>
+    <script defer src="../js/animations.js"></script>
+    <script defer src="../js/dashboard.js"></script>
+    <script defer src="../js/app.js"></script>
+</head>
+<body class="page-shell auth-page">
+    <main class="auth-grid" data-auth-page style="grid-template-columns: 1fr;">
+        <section class="auth-panel auth-panel--form" style="max-width: 580px; margin: 0 auto; min-height: 80vh; align-items: center; justify-content: center;">
+            <div class="auth-card glass-card reveal-on-scroll" data-reveal style="text-align: center; width: 100%;">
+                <header class="auth-header" style="text-align: center;">
+                    <div class="auth-brand-row" style="justify-content: center;">
+                        <div class="brand-lockup">
+                            <div class="brand-mark">B</div>
+                            <div>
+                                <div class="brand-name">Billing Platform</div>
+                                <div class="brand-meta">Error 404</div>
+                            </div>
+                        </div>
+                        <button class="btn-icon ripple" type="button" data-theme-toggle aria-pressed="false" aria-label="Toggle theme"></button>
+                    </div>
+                    <div style="font-size: 5.5rem; font-weight: 800; color: var(--primary); letter-spacing: -0.04em; margin: 24px 0 12px; line-height: 1;">404</div>
+                    <h1 class="auth-title">Page not found</h1>
+                    <p class="auth-subtitle" style="margin-bottom: 32px;">The endpoint or view you requested does not exist or has been relocated to another workspace location.</p>
+                </header>
+
+                <div class="form-actions" style="flex-direction: column; gap: 12px;">
+                    <a href="dashboard.html" class="btn btn-primary ripple" style="justify-content: center; width: 100%;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="10" rx="1"/><rect width="7" height="5" x="3" y="14" rx="1"/></svg>
+                        <span>Return to Dashboard</span>
+                    </a>
+                    <a href="login.html" class="btn btn-ghost ripple" style="justify-content: center; width: 100%;">
+                        <span>Go to Sign In</span>
+                    </a>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div data-component="toast"></div>
+    <div data-component="loader"></div>
+</body>
+</html>

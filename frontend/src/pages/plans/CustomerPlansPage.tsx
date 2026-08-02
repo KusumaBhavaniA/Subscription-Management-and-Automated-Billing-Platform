@@ -1,0 +1,437 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  Layers,
+  Check,
+  Zap,
+  Search,
+  Users,
+  HardDrive,
+  Code2,
+  Headphones,
+  Sparkles,
+  ArrowRight,
+  ShieldCheck,
+  AlertCircle,
+  TrendingUp,
+  TrendingDown,
+  RefreshCw,
+} from 'lucide-react';
+import { Card } from '../../components/common/Card';
+import { Badge } from '../../components/common/Badge';
+import { Button } from '../../components/common/Button';
+import { Modal } from '../../components/common/Modal';
+import { Select } from '../../components/common/Select';
+import { formatCurrency } from '../../utils/formatters';
+import { Plan } from '../../types/plan';
+import { Subscription } from '../../types/subscription';
+import { planApi } from '../../services/api/planApi';
+import { subscriptionManagementApi } from '../../services/api/subscriptionManagementApi';
+import { useAuth } from '../../hooks/useAuth';
+
+type SortOption = 'popular' | 'price-asc' | 'price-desc';
+
+export const CustomerPlansPage: React.FC = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [activeSub, setActiveSub] = useState<Subscription | null>(null);
+  const [billingCycle, setBillingCycle] = useState<'Monthly' | 'Yearly'>('Monthly');
+
+  // Search, Filter & Sort
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<SortOption>('popular');
+
+  // Review & Purchase Modal
+  const [selectedPlanForCheckout, setSelectedPlanForCheckout] = useState<Plan | null>(null);
+  const [checkoutCycle, setCheckoutCycle] = useState<'Monthly' | 'Yearly'>('Monthly');
+  const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      const allPlans = await planApi.getPlans();
+      // Only display plans enabled by Admin
+      const enabledPlans = allPlans.filter((p) => p.isEnabled !== false);
+      setPlans(enabledPlans);
+
+      if (user?.email) {
+        const sub = await subscriptionManagementApi.getSubscriptionByEmail(user.email);
+        setActiveSub(sub);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [user]);
+
+  // Filter & Sort Logic
+  const filteredPlans = plans
+    .filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.description.toLowerCase().includes(searchQuery.toLowerCase()))
+    .sort((a, b) => {
+      if (sortBy === 'popular') {
+        return (b.isPopular ? 1 : 0) - (a.isPopular ? 1 : 0);
+      }
+      const priceA = billingCycle === 'Monthly' ? a.priceMonthly : a.priceYearly;
+      const priceB = billingCycle === 'Monthly' ? b.priceMonthly : b.priceYearly;
+      if (sortBy === 'price-asc') return priceA - priceB;
+      if (sortBy === 'price-desc') return priceB - priceA;
+      return 0;
+    });
+
+  const getPlanTierLevel = (planName: string) => {
+    if (planName === 'Starter Tier') return 1;
+    if (planName === 'Pro Business') return 2;
+    if (planName === 'Enterprise Scale') return 3;
+    return 1;
+  };
+
+  const getActionButtonText = (targetPlan: Plan) => {
+    if (!activeSub || activeSub.planName === 'None' || !activeSub.status) {
+      return { text: 'Subscribe', variant: 'primary' as const };
+    }
+
+    if (activeSub.status === 'Cancelled') {
+      return { text: 'Subscribe Again', variant: 'primary' as const };
+    }
+
+    if (activeSub.status === 'Expired') {
+      return { text: 'Renew', variant: 'primary' as const };
+    }
+
+    if (activeSub.planName === targetPlan.name && activeSub.status === 'Active') {
+      return { text: 'Current Active Plan', variant: 'outline' as const, disabled: true };
+    }
+
+    const currentLevel = getPlanTierLevel(activeSub.planName);
+    const targetLevel = getPlanTierLevel(targetPlan.name);
+
+    if (targetLevel > currentLevel) {
+      return { text: 'Upgrade', variant: 'primary' as const };
+    } else {
+      return { text: 'Downgrade', variant: 'outline' as const };
+    }
+  };
+
+  const handleOpenCheckout = (plan: Plan) => {
+    setSelectedPlanForCheckout(plan);
+    setCheckoutCycle(billingCycle);
+    setIsCheckoutModalOpen(true);
+  };
+
+  const handleConfirmPurchase = async () => {
+    if (!selectedPlanForCheckout || !user) return;
+    setIsSubmitting(true);
+    try {
+      await subscriptionManagementApi.assignSubscription(
+        user.email,
+        user.fullName,
+        selectedPlanForCheckout.name,
+        checkoutCycle
+      );
+
+      await loadData();
+      setIsCheckoutModalOpen(false);
+      setSuccessMessage(`Successfully subscribed to ${selectedPlanForCheckout.name}!`);
+
+      setTimeout(() => {
+        setSuccessMessage(null);
+        navigate('/customer/dashboard');
+      }, 1500);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6 max-w-7xl mx-auto pb-16">
+      {/* Success Toast */}
+      {successMessage && (
+        <div className="p-4 rounded-xl bg-emerald-500 text-white font-extrabold text-xs shadow-lg flex items-center justify-between">
+          <span className="flex items-center gap-2">
+            <Check className="w-5 h-5" /> {successMessage}
+          </span>
+          <span className="text-[10px] opacity-80">Redirecting to Dashboard...</span>
+        </div>
+      )}
+
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-extrabold text-heading flex items-center gap-2">
+            <Layers className="w-6 h-6 text-primary" />
+            Available Subscription Tiers
+          </h1>
+          <p className="text-xs text-secondaryText mt-1">
+            Choose the right plan for your business needs. Live pricing synchronized with backend configurations.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {/* Monthly / Yearly Billing Toggle */}
+          <div className="flex items-center gap-1.5 bg-secondary p-1 rounded-xl border border-border">
+            <button
+              onClick={() => setBillingCycle('Monthly')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+                billingCycle === 'Monthly' ? 'bg-primary text-white shadow-sm' : 'text-secondaryText hover:text-primaryText'
+              }`}
+            >
+              Monthly
+            </button>
+            <button
+              onClick={() => setBillingCycle('Yearly')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+                billingCycle === 'Yearly' ? 'bg-primary text-white shadow-sm' : 'text-secondaryText hover:text-primaryText'
+              }`}
+            >
+              Yearly <span className="text-[10px] text-success font-semibold">(Save 20%)</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Search, Filter & Sort Controls Bar */}
+      <Card className="p-4 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="relative flex-1 max-w-md w-full">
+          <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-mutedText" />
+          <input
+            type="text"
+            placeholder="Search plans by name or feature..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-input border border-border rounded-xl text-xs text-primaryText focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary font-medium"
+          />
+        </div>
+
+        <div className="flex items-center gap-3 w-full md:w-auto justify-end">
+          <Select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as SortOption)}
+            options={[
+              { value: 'popular', label: 'Sort by: Most Popular' },
+              { value: 'price-asc', label: 'Sort by: Price (Low to High)' },
+              { value: 'price-desc', label: 'Sort by: Price (High to Low)' },
+            ]}
+          />
+        </div>
+      </Card>
+
+      {/* Plans List Grid */}
+      {isLoading ? (
+        <Card className="p-12 text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto" />
+          <p className="text-xs text-secondaryText mt-3 font-semibold">Loading available plans from backend...</p>
+        </Card>
+      ) : filteredPlans.length === 0 ? (
+        /* FRIENDLY EMPTY STATE WHEN NO PLANS ARE AVAILABLE */
+        <Card className="p-12 text-center space-y-4 border border-dashed border-border bg-card">
+          <AlertCircle className="w-12 h-12 text-mutedText mx-auto" />
+          <div className="space-y-1">
+            <h3 className="text-lg font-extrabold text-heading">No subscription plans are available at the moment.</h3>
+            <p className="text-xs text-secondaryText max-w-md mx-auto">
+              The administrator has not published any active subscription tiers. Please check back later or contact support.
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => navigate('/customer/support')}>
+            Contact Support
+          </Button>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {filteredPlans.map((plan) => {
+            const isCurrent = activeSub?.planName === plan.name && activeSub?.status === 'Active';
+            const price = billingCycle === 'Monthly' ? plan.priceMonthly : plan.priceYearly;
+            const actionInfo = getActionButtonText(plan);
+
+            return (
+              <Card
+                key={plan.id}
+                className={`relative flex flex-col justify-between p-6 transition-all border ${
+                  isCurrent
+                    ? 'border-primary shadow-xl ring-2 ring-primary/30 bg-primary/5'
+                    : plan.isPopular
+                    ? 'border-primary/60 shadow-md ring-1 ring-primary/20 bg-card'
+                    : 'border-border bg-card'
+                }`}
+              >
+                {/* Badges Bar */}
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  {isCurrent ? (
+                    <Badge variant="success">Current Plan</Badge>
+                  ) : plan.isPopular ? (
+                    <Badge variant="brand">Most Popular</Badge>
+                  ) : (
+                    <span />
+                  )}
+                </div>
+
+                <div className="space-y-4">
+                  {/* Name & Description */}
+                  <div>
+                    <h3 className="text-lg font-extrabold text-heading">{plan.name}</h3>
+                    <p className="text-xs text-secondaryText mt-1 min-h-[36px] font-medium leading-relaxed">
+                      {plan.description}
+                    </p>
+                  </div>
+
+                  {/* Price Section */}
+                  <div className="pt-3 border-t border-border space-y-1">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-3xl font-black text-heading">{formatCurrency(price)}</span>
+                      <span className="text-xs text-mutedText font-semibold">/{billingCycle === 'Monthly' ? 'mo' : 'yr'}</span>
+                    </div>
+                  </div>
+
+                  {/* Usage Limits */}
+                  <div className="space-y-2 pt-3 border-t border-border text-xs">
+                    <span className="text-[10px] font-bold text-mutedText uppercase tracking-wider block">Usage Limits</span>
+
+                    <div className="flex items-center gap-2 text-secondaryText font-semibold">
+                      <Users className="w-3.5 h-3.5 text-primary shrink-0" />
+                      <span>Max Customers: <strong className="text-heading">{plan.maxCustomers || '1,000 Customers'}</strong></span>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-secondaryText font-semibold">
+                      <HardDrive className="w-3.5 h-3.5 text-primary shrink-0" />
+                      <span>Storage: <strong className="text-heading">{plan.storage || '50 GB Storage'}</strong></span>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-secondaryText font-semibold">
+                      <Code2 className="w-3.5 h-3.5 text-primary shrink-0" />
+                      <span>API Access: <strong className="text-heading">{plan.apiAccess || 'Standard REST API'}</strong></span>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-secondaryText font-semibold">
+                      <Headphones className="w-3.5 h-3.5 text-primary shrink-0" />
+                      <span>Support: <strong className="text-heading">{plan.supportLevel || '24/7 Support'}</strong></span>
+                    </div>
+                  </div>
+
+                  {/* Features List */}
+                  <div className="space-y-2 pt-3 border-t border-border">
+                    <span className="text-[10px] font-bold text-mutedText uppercase tracking-wider block">Included Features</span>
+                    <ul className="space-y-2">
+                      {plan.features.map((feat, idx) => (
+                        <li key={idx} className="flex items-center gap-2 text-xs text-primaryText font-medium">
+                          <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                          <span>{feat}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+
+                {/* Plan Action Button */}
+                <div className="pt-6 mt-4 border-t border-border">
+                  <Button
+                    variant={actionInfo.variant}
+                    disabled={actionInfo.disabled}
+                    className="w-full"
+                    onClick={() => handleOpenCheckout(plan)}
+                    rightIcon={!actionInfo.disabled ? <ArrowRight className="w-4 h-4" /> : undefined}
+                  >
+                    {actionInfo.text}
+                  </Button>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* REVIEW SUBSCRIPTION & PURCHASE MODAL */}
+      {selectedPlanForCheckout && (
+        <Modal
+          isOpen={isCheckoutModalOpen}
+          onClose={() => setIsCheckoutModalOpen(false)}
+          title="Review & Confirm Subscription"
+          size="md"
+        >
+          <div className="space-y-5 text-xs">
+            <div className="p-4 rounded-xl bg-secondary border border-border space-y-2">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-extrabold text-heading">{selectedPlanForCheckout.name}</h3>
+                <Badge variant="brand">{checkoutCycle}</Badge>
+              </div>
+              <p className="text-xs text-secondaryText leading-relaxed">{selectedPlanForCheckout.description}</p>
+            </div>
+
+            {/* Cycle Selector in Checkout */}
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-secondaryText uppercase tracking-wider">Billing Frequency</label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setCheckoutCycle('Monthly')}
+                  className={`p-3 rounded-xl border text-left cursor-pointer transition-all ${
+                    checkoutCycle === 'Monthly' ? 'border-primary bg-primary/10 font-bold' : 'border-border bg-card'
+                  }`}
+                >
+                  <span className="block font-bold text-heading text-xs">Monthly Billing</span>
+                  <span className="text-xs text-emerald-600 font-extrabold">{formatCurrency(selectedPlanForCheckout.priceMonthly)}/mo</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setCheckoutCycle('Yearly')}
+                  className={`p-3 rounded-xl border text-left cursor-pointer transition-all ${
+                    checkoutCycle === 'Yearly' ? 'border-primary bg-primary/10 font-bold' : 'border-border bg-card'
+                  }`}
+                >
+                  <span className="block font-bold text-heading text-xs">Yearly Billing (Save 20%)</span>
+                  <span className="text-xs text-emerald-600 font-extrabold">{formatCurrency(selectedPlanForCheckout.priceYearly)}/yr</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Price Breakdown */}
+            <div className="p-4 rounded-xl border border-border bg-card space-y-2">
+              <span className="text-[10px] font-bold text-mutedText uppercase tracking-wider block">Price Breakdown</span>
+              {(() => {
+                const subtotal = checkoutCycle === 'Monthly' ? selectedPlanForCheckout.priceMonthly : selectedPlanForCheckout.priceYearly;
+                const tax = Math.round(subtotal * 0.18);
+                const total = subtotal + tax;
+                return (
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex justify-between text-secondaryText">
+                      <span>Subtotal ({checkoutCycle})</span>
+                      <span className="font-bold text-heading">{formatCurrency(subtotal)}</span>
+                    </div>
+                    <div className="flex justify-between text-secondaryText">
+                      <span>GST (18%)</span>
+                      <span className="font-bold text-heading">{formatCurrency(tax)}</span>
+                    </div>
+                    <div className="flex justify-between pt-2 border-t border-border font-extrabold text-sm text-heading">
+                      <span>Total Amount Payable</span>
+                      <span className="text-emerald-600 dark:text-emerald-400">{formatCurrency(total)}</span>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div className="flex justify-end gap-3 pt-3 border-t border-border">
+              <Button variant="outline" onClick={() => setIsCheckoutModalOpen(false)} disabled={isSubmitting}>
+                Cancel
+              </Button>
+              <Button variant="primary" isLoading={isSubmitting} onClick={handleConfirmPurchase} leftIcon={<Zap className="w-4 h-4" />}>
+                Confirm & Activate Subscription
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+};
