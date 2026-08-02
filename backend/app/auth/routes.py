@@ -8,7 +8,7 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import User
+from app.models_backup import User
 from app.schemas.user import UserCreate, OTPVerifyRequest, ResetPasswordRequest
 from app.auth.jwt import create_access_token
 from app.auth.password import hash_password, verify_password

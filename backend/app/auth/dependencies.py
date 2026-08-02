@@ -4,7 +4,7 @@ from jose import jwt
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import User
+from app.models_backup import User
 from app.config import settings
 
 

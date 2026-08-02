@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 
 from alembic import context
 from app.database import Base
-from app import models
+from backend.app import models_backup
 from app.config import settings
 
 # this is the Alembic Config object, which provides

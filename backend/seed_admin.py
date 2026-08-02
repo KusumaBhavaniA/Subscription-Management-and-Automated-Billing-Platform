@@ -21,7 +21,7 @@ import os
 sys.path.insert(0, os.path.dirname(__file__))
 
 from app.database import SessionLocal
-from app.models import User
+from backend.app.models_backup import User
 from app.auth.password import hash_password
 
 # ---------------------------------------------------------------------------
