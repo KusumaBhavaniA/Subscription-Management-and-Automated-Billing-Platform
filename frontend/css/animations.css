@@ -1,0 +1,251 @@
+@keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes fade-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+@keyframes slide-up {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-left {
+    from { opacity: 0; transform: translateX(24px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slide-right {
+    from { opacity: 0; transform: translateX(-24px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes zoom-in {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes blur-in {
+    from { opacity: 0; filter: blur(14px); transform: translateY(12px); }
+    to { opacity: 1; filter: blur(0); transform: translateY(0); }
+}
+
+@keyframes float-bg {
+    0% { transform: translate3d(0, 0, 0) scale(1); }
+    50% { transform: translate3d(24px, -18px, 0) scale(1.05); }
+    100% { transform: translate3d(-12px, 20px, 0) scale(0.98); }
+}
+
+@keyframes gradient-shift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+@keyframes glass-reflection {
+    0% { transform: translateX(-120%) skewX(-18deg); opacity: 0; }
+    20% { opacity: 1; }
+    100% { transform: translateX(220%) skewX(-18deg); opacity: 0; }
+}
+
+@keyframes hover-lift {
+    from { transform: translateY(0); }
+    to { transform: translateY(-4px); }
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes shimmer {
+    0% { background-position: -120% 0; }
+    100% { background-position: 120% 0; }
+}
+
+@keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.2); }
+    50% { box-shadow: 0 0 0 16px rgba(37, 99, 235, 0); }
+}
+
+@keyframes toast-in {
+    from { opacity: 0; transform: translateY(-12px) scale(0.96); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes toast-out {
+    from { opacity: 1; transform: translateY(0) scale(1); }
+    to { opacity: 0; transform: translateY(-8px) scale(0.96); }
+}
+
+@keyframes modal-backdrop-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes modal-panel-in {
+    from { opacity: 0; transform: translateY(24px) scale(0.96); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes dropdown-in {
+    from { opacity: 0; transform: translateY(-10px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes sidebar-enter {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(0); }
+}
+
+.fade-in { animation: fade-in var(--duration-slow) var(--ease-out) both; }
+.fade-out { animation: fade-out var(--duration-normal) var(--ease-out) both; }
+.slide-up { animation: slide-up var(--duration-slow) var(--ease-emphasis) both; }
+.slide-left { animation: slide-left var(--duration-slow) var(--ease-emphasis) both; }
+.slide-right { animation: slide-right var(--duration-slow) var(--ease-emphasis) both; }
+.zoom-in { animation: zoom-in var(--duration-normal) var(--ease-emphasis) both; }
+.blur-in { animation: blur-in var(--duration-slow) var(--ease-out) both; }
+
+.floating-bg {
+    animation: float-bg 18s ease-in-out infinite alternate;
+}
+
+.gradient-flow {
+    background-size: 220% 220%;
+    animation: gradient-shift 16s ease infinite;
+}
+
+.glass-reflection::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    width: 40%;
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.16) 48%, transparent 100%);
+    filter: blur(2px);
+    animation: glass-reflection 5.8s ease-in-out infinite;
+    pointer-events: none;
+}
+
+.hover-lift,
+.card:hover,
+.metric-card:hover,
+.panel:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+}
+
+.card,
+.metric-card,
+.panel,
+.surface-card,
+.auth-card,
+.chip,
+button,
+input,
+textarea,
+select,
+.table-row {
+    transition: transform var(--duration-normal) var(--ease-out), box-shadow var(--duration-normal) var(--ease-out), border-color var(--duration-normal) var(--ease-out), background-color var(--duration-normal) var(--ease-out), opacity var(--duration-normal) var(--ease-out);
+}
+
+.mouse-glow {
+    position: relative;
+    overflow: hidden;
+}
+
+.mouse-glow::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(37, 99, 235, 0.16), transparent 30%);
+    opacity: 0;
+    transition: opacity var(--duration-normal) var(--ease-out);
+    pointer-events: none;
+}
+
+.mouse-glow:hover::before {
+    opacity: 1;
+}
+
+.reveal-on-scroll {
+    opacity: 0;
+    transform: translateY(18px);
+    transition: opacity var(--duration-slow) var(--ease-out), transform var(--duration-slow) var(--ease-out);
+}
+
+.reveal-on-scroll.is-visible {
+    opacity: 1 !important;
+    transform: translateY(0) !important;
+    animation: slide-up var(--duration-slow) var(--ease-emphasis) both;
+}
+
+.reduce-motion .reveal-on-scroll {
+    opacity: 1 !important;
+    transform: none !important;
+}
+
+.skeleton {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(90deg, rgba(148, 163, 184, 0.12) 0%, rgba(255, 255, 255, 0.2) 18%, rgba(148, 163, 184, 0.12) 36%);
+    background-size: 200% 100%;
+    animation: shimmer 1.35s linear infinite;
+    color: transparent !important;
+    border-color: transparent !important;
+}
+
+.spinner {
+    display: none !important;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.28);
+    border-top-color: #ffffff;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+}
+
+.btn.is-loading .spinner,
+.button-loading .spinner,
+.is-loading > .spinner {
+    display: inline-block !important;
+}
+
+.page-shell {
+    animation: blur-in var(--duration-slow) var(--ease-out) both;
+}
+
+.modal-overlay {
+    animation: modal-backdrop-in var(--duration-normal) var(--ease-out) both;
+}
+
+.modal-panel {
+    animation: modal-panel-in var(--duration-slow) var(--ease-emphasis) both;
+}
+
+.dropdown-menu {
+    animation: dropdown-in var(--duration-normal) var(--ease-out) both;
+}
+
+.sidebar.is-open {
+    animation: sidebar-enter var(--duration-slow) var(--ease-emphasis) both;
+}
+
+.ripple__effect {
+    position: absolute;
+    border-radius: 50%;
+    transform: scale(0);
+    background: rgba(255, 255, 255, 0.38);
+    animation: ripple 620ms var(--ease-out) forwards;
+    pointer-events: none;
+}
+
+@keyframes ripple {
+    to {
+        transform: scale(4);
+        opacity: 0;
+    }
+}

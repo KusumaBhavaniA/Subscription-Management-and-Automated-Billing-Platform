@@ -1,0 +1,214 @@
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
+
+@layer base {
+  :root,
+  [data-theme="light"],
+  .light {
+    --background: #F8FAFC;
+    --surface: #FFFFFF;
+    --card: #FFFFFF;
+    --card-hover: #F1F5F9;
+    --input-bg: #FFFFFF;
+    --dropdown-bg: #FFFFFF;
+
+    --text-heading: #020617;
+    --text-primary: #0F172A;
+    --text-secondary: #475569;
+    --text-muted: #64748B;
+    --text-inverse: #FFFFFF;
+
+    --border: #CBD5E1;
+    --border-hover: #94A3B8;
+
+    --primary: #2563EB;
+    --primary-hover: #1D4ED8;
+    --primary-text: #FFFFFF;
+
+    --secondary: #F1F5F9;
+    --secondary-hover: #E2E8F0;
+    --secondary-text: #334155;
+
+    --success: #059669;
+    --success-bg: #ECFDF5;
+    --success-border: #A7F3D0;
+    --success-text: #047857;
+
+    --warning: #D97706;
+    --warning-bg: #FFFBEB;
+    --warning-border: #FDE68A;
+    --warning-text: #B45309;
+
+    --danger: #DC2626;
+    --danger-bg: #FEF2F2;
+    --danger-border: #FCA5A5;
+    --danger-text: #B91C1C;
+
+    --table-header-bg: #F8FAFC;
+    --table-row-hover: #F1F5F9;
+    --shadow-color: rgba(15, 23, 42, 0.08);
+
+    --scrollbar-track: #F8FAFC;
+    --scrollbar-thumb: #CBD5E1;
+    --scrollbar-thumb-hover: #94A3B8;
+  }
+
+  [data-theme="dark"],
+  .dark {
+    --background: #0B1120;
+    --surface: #111827;
+    --card: #111827;
+    --card-hover: #1F2937;
+    --input-bg: #0F172A;
+    --dropdown-bg: #111827;
+
+    --text-heading: #FFFFFF;
+    --text-primary: #F8FAFC;
+    --text-secondary: #94A3B8;
+    --text-muted: #64748B;
+    --text-inverse: #0F172A;
+
+    --border: #334155;
+    --border-hover: #475569;
+
+    --primary: #2563EB;
+    --primary-hover: #1D4ED8;
+    --primary-text: #FFFFFF;
+
+    --secondary: #1E293B;
+    --secondary-hover: #334155;
+    --secondary-text: #CBD5E1;
+
+    --success: #10B981;
+    --success-bg: rgba(16, 185, 129, 0.15);
+    --success-border: rgba(16, 185, 129, 0.3);
+    --success-text: #34D399;
+
+    --warning: #F59E0B;
+    --warning-bg: rgba(245, 158, 11, 0.15);
+    --warning-border: rgba(245, 158, 11, 0.3);
+    --warning-text: #FBBF24;
+
+    --danger: #EF4444;
+    --danger-bg: rgba(239, 68, 68, 0.15);
+    --danger-border: rgba(239, 68, 68, 0.3);
+    --danger-text: #F87171;
+
+    --table-header-bg: #0F172A;
+    --table-row-hover: rgba(31, 41, 55, 0.6);
+    --shadow-color: rgba(0, 0, 0, 0.5);
+
+    --scrollbar-track: #0B1120;
+    --scrollbar-thumb: #334155;
+    --scrollbar-thumb-hover: #475569;
+  }
+}
+
+/* Global smooth transition without layout shifts */
+*, ::before, ::after {
+  transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: var(--background);
+  color: var(--text-primary);
+  margin: 0;
+  padding: 0;
+}
+
+/* Helper Semantic CSS Utility Classes */
+.bg-app-bg {
+  background-color: var(--background);
+}
+
+.bg-app-surface {
+  background-color: var(--surface);
+}
+
+.bg-app-card {
+  background-color: var(--card);
+}
+
+.bg-app-secondary {
+  background-color: var(--secondary);
+}
+
+.text-app-heading {
+  color: var(--text-heading);
+}
+
+.text-app-primary {
+  color: var(--text-primary);
+}
+
+.text-app-secondary {
+  color: var(--text-secondary);
+}
+
+.text-app-muted {
+  color: var(--text-muted);
+}
+
+.border-app {
+  border-color: var(--border);
+}
+
+.glass-panel {
+  background: var(--surface);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-color: var(--border);
+}
+
+.glass-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 20px 0 var(--shadow-color);
+  color: var(--text-primary);
+}
+
+/* Custom Theme-Adaptive Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* Isolated scrollable container — used by Modal body */
+.custom-scrollbar {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+  border-radius: 9999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 9999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
