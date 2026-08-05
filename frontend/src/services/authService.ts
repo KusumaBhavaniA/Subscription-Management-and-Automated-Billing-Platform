@@ -217,25 +217,9 @@ export const authService = {
    * Calls POST /api/auth/login
    */
   login: async (email: string, password: string, role: UserRole, fullName?: string): Promise<AuthSession> => {
-    await new Promise((resolve) => setTimeout(resolve, 300));
-
     const cleanEmail = email.trim().toLowerCase();
-    const cleanFullName = fullName?.trim();
 
-    // Admin login demo fallback check first
-    if (role === 'Admin' && cleanEmail === HARDCODED_ADMIN.email && password === HARDCODED_ADMIN.passwordHash) {
-      const { passwordHash, ...adminUser } = HARDCODED_ADMIN;
-      const session: AuthSession = {
-        user: adminUser,
-        token: `prod-jwt-token-admin-${Date.now()}`,
-      };
-      setItem(STORAGE_KEYS.AUTH, session);
-      return session;
-    }
-
-    // Call FastAPI Backend API
     const apiResponse = await authApi.login({
-      fullName: role === 'Customer' ? cleanFullName : undefined,
       email: cleanEmail,
       password,
     });
@@ -249,53 +233,7 @@ export const authService = {
       return session;
     }
 
-    if (apiResponse.error || (apiResponse.success === false && apiResponse.message)) {
-      if (apiResponse.error?.includes('Invalid') || apiResponse.message?.includes('Invalid')) {
-        throw new Error(apiResponse.message || apiResponse.error || 'Invalid email or password.');
-      }
-    }
-
-    // Customer login check
-    const storedUsers = getItem<StoredUser[]>(STORAGE_KEYS.USERS, []);
-    const foundUser = storedUsers.find(
-      (u) => u.email.toLowerCase() === cleanEmail && u.role === 'Customer'
-    );
-
-    if (foundUser && foundUser.passwordHash === password) {
-      const { passwordHash, ...customerUser } = foundUser;
-      if (cleanFullName) customerUser.fullName = cleanFullName;
-      const session: AuthSession = {
-        user: customerUser,
-        token: `prod-jwt-token-customer-${Date.now()}`,
-      };
-      setItem(STORAGE_KEYS.AUTH, session);
-      return session;
-    }
-
-    // Generic customer fallback for demo preview
-    if (role === 'Customer' && cleanEmail && password) {
-      const displayFullName = cleanFullName || cleanEmail.split('@')[0].replace('.', ' ').toUpperCase();
-      const customerUser: User = {
-        id: `usr-cust-${Date.now()}`,
-        customerId: `CUS-2026-${Math.floor(100000 + Math.random() * 900000)}`,
-        fullName: displayFullName,
-        firstName: displayFullName.split(' ')[0],
-        lastName: displayFullName.split(' ').slice(1).join(' ') || 'User',
-        email: cleanEmail,
-        role: 'Customer',
-        createdAt: new Date().toISOString(),
-        status: 'Verified',
-        currentPlan: 'Starter',
-      };
-      const session: AuthSession = {
-        user: customerUser,
-        token: `prod-jwt-token-customer-${Date.now()}`,
-      };
-      setItem(STORAGE_KEYS.AUTH, session);
-      return session;
-    }
-
-    throw new Error('Invalid email or password.');
+    throw new Error(apiResponse.error || apiResponse.message || 'Login failed.');
   },
 
   getCurrentSession: (): AuthSession | null => {
@@ -303,7 +241,8 @@ export const authService = {
   },
 
   logout: (): void => {
-    authApi.logout().catch(() => {});
+    const session = getItem<AuthSession | null>(STORAGE_KEYS.AUTH, null);
+    authApi.logout(session?.token).catch(() => {});
     removeItem(STORAGE_KEYS.AUTH);
   },
 

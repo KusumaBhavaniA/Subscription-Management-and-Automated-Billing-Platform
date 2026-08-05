@@ -23,6 +23,8 @@ export const SocialAuthButtons: React.FC<SocialAuthButtonsProps> = ({ isLoading,
     try {
       // 1. Try redirecting to official Backend OAuth endpoint GET /auth/{provider}/login
       const backendOAuthUrl = authApi.getOAuthLoginUrl(provider);
+      window.location.assign(backendOAuthUrl);
+      return;
 
       // Check if backend responds with redirect or 200
       try {

@@ -2,20 +2,24 @@ import React, { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { Card } from '../../components/common/Card';
+import { authApi } from '../../services/api/authApi';
 
 export const AuthCallbackPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { socialLogin } = useAuth();
+  const { acceptSession } = useAuth();
 
   useEffect(() => {
     const handleOAuthCallback = async () => {
-      const providerParam = searchParams.get('provider') as 'Google' | 'Microsoft' | 'Apple' | null;
-      const provider = providerParam || 'Google';
+      const token = searchParams.get('token');
 
       try {
-        const session = await socialLogin(provider);
-        if (session.user.role === 'Admin') {
+        if (!token) throw new Error('Missing authentication token.');
+        const response = await authApi.getMe(token);
+        if (!response.success || !response.data) throw new Error(response.error || response.message);
+
+        acceptSession({ token, user: response.data });
+        if (response.data.role === 'Admin') {
           navigate('/admin/dashboard');
         } else {
           navigate('/customer/dashboard');
@@ -27,7 +31,7 @@ export const AuthCallbackPage: React.FC = () => {
     };
 
     handleOAuthCallback();
-  }, [searchParams]);
+  }, [searchParams, acceptSession, navigate]);
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-background text-primaryText">

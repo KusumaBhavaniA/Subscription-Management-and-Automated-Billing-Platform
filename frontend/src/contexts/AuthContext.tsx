@@ -10,6 +10,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string, role: UserRole, fullName?: string) => Promise<AuthSession>;
   socialLogin: (provider: SocialProvider) => Promise<AuthSession>;
+  acceptSession: (session: AuthSession) => void;
   logout: () => void;
   register: (dto: RegisterCustomerDTO) => Promise<{ email: string }>;
   verifyOTP: (email: string, otp: string) => Promise<{ success: boolean; message: string }>;
@@ -42,6 +43,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const session = await authService.socialLogin(provider);
     setUser(session.user);
     return session;
+  };
+
+  const acceptSession = (session: AuthSession) => {
+    setItem(STORAGE_KEYS.AUTH, session);
+    setUser(session.user);
   };
 
   const logout = () => {
@@ -87,6 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoading,
         login,
         socialLogin,
+        acceptSession,
         logout,
         register,
         verifyOTP,

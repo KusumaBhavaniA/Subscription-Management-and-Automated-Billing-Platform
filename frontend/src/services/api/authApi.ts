@@ -1,4 +1,4 @@
-import { RegisterCustomerDTO, OTPVerificationDTO, AuthSession, SocialProvider } from '../../types/auth';
+import { RegisterCustomerDTO, OTPVerificationDTO, AuthSession, SocialProvider, User } from '../../types/auth';
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -6,6 +6,29 @@ export interface ApiResponse<T = any> {
   data?: T;
   error?: string;
 }
+
+const request = async <T>(path: string, options: RequestInit = {}): Promise<ApiResponse<T>> => {
+  try {
+    const response = await fetch(path, {
+      ...options,
+      headers: { 'Content-Type': 'application/json', ...options.headers },
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      const message = typeof data.detail === 'string' ? data.detail : (data.message || 'Request failed.');
+      return { success: false, message, error: message };
+    }
+
+    return data;
+  } catch {
+    return {
+      success: false,
+      message: 'Unable to reach the backend. Ensure backend2 is running on port 8000.',
+      error: 'Unable to reach the backend. Ensure backend2 is running on port 8000.',
+    };
+  }
+};
 
 export const authApi = {
   /**
@@ -23,36 +46,11 @@ export const authApi = {
   },
 
   register: async (payload: RegisterCustomerDTO): Promise<ApiResponse<{ email: string }>> => {
-    try {
-      const response = await fetch('/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        return {
-          success: false,
-          message: typeof data.detail === 'string' ? data.detail : (data.message || 'Registration failed.'),
-          error: typeof data.detail === 'string' ? data.detail : data.message,
-        };
-      }
-      return data;
-    } catch (err: any) {
-      return {
-        success: true,
-        message: "We've sent a verification code to your email.",
-        data: { email: payload.email },
-      };
-    }
+    return request('/auth/register', { method: 'POST', body: JSON.stringify(payload) });
   },
 
   verifyOTP: async (payload: OTPVerificationDTO): Promise<ApiResponse<{ verified: boolean }>> => {
-    return {
-      success: true,
-      message: 'Your account has been verified successfully.',
-      data: { verified: true },
-    };
+    return request('/auth/verify-otp', { method: 'POST', body: JSON.stringify(payload) });
   },
 
   verifyOtp: async (payload: OTPVerificationDTO): Promise<ApiResponse<{ verified: boolean }>> => {
@@ -60,11 +58,7 @@ export const authApi = {
   },
 
   resendOTP: async (payload: { email: string }): Promise<ApiResponse<{ otpSent: boolean }>> => {
-    return {
-      success: true,
-      message: "We've sent a verification code to your email.",
-      data: { otpSent: true },
-    };
+    return request('/auth/resend-otp', { method: 'POST', body: JSON.stringify(payload) });
   },
 
   resendOtp: async (payload: { email: string }): Promise<ApiResponse<{ otpSent: boolean }>> => {
@@ -72,37 +66,15 @@ export const authApi = {
   },
 
   login: async (payload: { fullName?: string; email: string; password: string }): Promise<ApiResponse<AuthSession>> => {
-    try {
-      const response = await fetch('/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: payload.email, password: payload.password }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        return {
-          success: false,
-          message: typeof data.detail === 'string' ? data.detail : (data.message || 'Login failed.'),
-          error: typeof data.detail === 'string' ? data.detail : data.message,
-        };
+    return request('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email: payload.email, password: payload.password }),
+    }).then((response: any) => {
+      if (response.success && response.data?.access_token && response.data?.user) {
+        return { ...response, data: { user: response.data.user, token: response.data.access_token } };
       }
-      if (data.success && data.data?.access_token && data.data?.user) {
-        return {
-          success: true,
-          message: data.message || 'Login successful.',
-          data: {
-            user: data.data.user,
-            token: data.data.access_token,
-          },
-        };
-      }
-      return data;
-    } catch (err: any) {
-      return {
-        success: true,
-        message: 'Login successful.',
-      };
-    }
+      return response;
+    });
   },
 
   /**
@@ -211,26 +183,21 @@ export const authApi = {
   },
 
   forgotPassword: async (payload: { email: string }): Promise<ApiResponse<{ emailSent: boolean }>> => {
-    return {
-      success: true,
-      message: 'Password reset instructions sent to your email address.',
-      data: { emailSent: true },
-    };
+    return request('/auth/forgot-password', { method: 'POST', body: JSON.stringify(payload) });
   },
 
   resetPassword: async (payload: { token: string; newPassword: string }): Promise<ApiResponse<{ reset: boolean }>> => {
-    return {
-      success: true,
-      message: 'Password has been reset successfully.',
-      data: { reset: true },
-    };
+    return request('/auth/reset-password', { method: 'POST', body: JSON.stringify(payload) });
   },
 
-  logout: async (): Promise<ApiResponse<{ loggedOut: boolean }>> => {
-    return {
-      success: true,
-      message: 'Logged out successfully.',
-      data: { loggedOut: true },
-    };
+  logout: async (token?: string): Promise<ApiResponse<{ loggedOut: boolean }>> => {
+    return request('/auth/logout', {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+  },
+
+  getMe: async (token: string): Promise<ApiResponse<User>> => {
+    return request('/auth/me', { headers: { Authorization: `Bearer ${token}` } });
   },
 };
