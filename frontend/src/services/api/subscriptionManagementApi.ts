@@ -5,10 +5,36 @@ import { NotificationItem, NotificationType } from '../../types/notification';
 import { STORAGE_KEYS, getItem, setItem } from '../../utils/storage';
 import { INITIAL_SUBSCRIPTIONS, INITIAL_NOTIFICATIONS } from '../mockDataService';
 
-const PLAN_PRICES: Record<string, { monthly: number; yearly: number }> = {
-  'Starter Tier': { monthly: 1999, yearly: 19990 },
-  'Pro Business': { monthly: 4999, yearly: 49990 },
-  'Enterprise Scale': { monthly: 14999, yearly: 149990 },
+const PLAN_PRICES: Record<string, { monthly: number; quarterly: number; yearly: number }> = {
+  'Starter Tier': { monthly: 1999, quarterly: 5399, yearly: 19990 },
+  'Pro Business': { monthly: 4999, quarterly: 13499, yearly: 49990 },
+  'Enterprise Scale': { monthly: 14999, quarterly: 40499, yearly: 149990 },
+};
+
+const getPlanPrice = (planName: string, cycle: BillingCycle) => {
+  const info = PLAN_PRICES[planName] || { monthly: 4999, quarterly: 13499, yearly: 49990 };
+  if (cycle === 'Monthly') return info.monthly;
+  if (cycle === 'Quarterly') return info.quarterly;
+  return info.yearly;
+};
+
+const getPlanMonthlyMrr = (planName: string, cycle: BillingCycle) => {
+  const price = getPlanPrice(planName, cycle);
+  if (cycle === 'Monthly') return price;
+  if (cycle === 'Quarterly') return Math.round(price / 3);
+  return Math.round(price / 12);
+};
+
+const calculateNextBillingDate = (cycle: BillingCycle) => {
+  const nextBilling = new Date();
+  if (cycle === 'Monthly') {
+    nextBilling.setMonth(nextBilling.getMonth() + 1);
+  } else if (cycle === 'Quarterly') {
+    nextBilling.setMonth(nextBilling.getMonth() + 3);
+  } else {
+    nextBilling.setFullYear(nextBilling.getFullYear() + 1);
+  }
+  return nextBilling.toISOString().split('T')[0];
 };
 
 const pushNotification = (title: NotificationType, message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
@@ -79,14 +105,12 @@ export const subscriptionManagementApi = {
     billingCycle: BillingCycle = 'Monthly'
   ): Promise<Subscription> => {
     const list = getItem<Subscription[]>(STORAGE_KEYS.SUBSCRIPTIONS, INITIAL_SUBSCRIPTIONS);
-    const planInfo = PLAN_PRICES[planName] || { monthly: 2999, yearly: 29990 };
-    const price = billingCycle === 'Monthly' ? planInfo.monthly : planInfo.yearly;
+    const price = getPlanPrice(planName, billingCycle);
+    const mrr = getPlanMonthlyMrr(planName, billingCycle);
 
     const existingIdx = list.findIndex((s) => s.customerEmail.toLowerCase() === customerEmail.toLowerCase());
 
-    const nextBilling = new Date();
-    if (billingCycle === 'Monthly') nextBilling.setMonth(nextBilling.getMonth() + 1);
-    else nextBilling.setFullYear(nextBilling.getFullYear() + 1);
+    const nextBillingDate = calculateNextBillingDate(billingCycle);
 
     const subObj: Subscription = {
       id: existingIdx !== -1 ? list[existingIdx].id : `sub-${Date.now()}`,
@@ -97,7 +121,7 @@ export const subscriptionManagementApi = {
       billingCycle,
       amount: price,
       startDate: new Date().toISOString().split('T')[0],
-      nextBillingDate: nextBilling.toISOString().split('T')[0],
+      nextBillingDate,
     };
 
     if (existingIdx !== -1) {
@@ -107,8 +131,8 @@ export const subscriptionManagementApi = {
     }
 
     setItem(STORAGE_KEYS.SUBSCRIPTIONS, list);
-    subscriptionManagementApi.syncCustomerRecord(customerEmail, planName, 'Active', planInfo.monthly);
-    pushNotification('Subscription Assigned', `Admin assigned you the ${planName} plan.`, 'success');
+    subscriptionManagementApi.syncCustomerRecord(customerEmail, planName, 'Active', mrr);
+    pushNotification('Subscription Assigned', `Admin assigned you the ${planName} plan (${billingCycle}).`, 'success');
     return subObj;
   },
 
@@ -120,15 +144,16 @@ export const subscriptionManagementApi = {
     const idx = list.findIndex((s) => s.id === subscriptionId);
     if (idx === -1) throw new Error('Subscription not found');
 
-    const planInfo = PLAN_PRICES[targetPlan] || { monthly: 14999, yearly: 149990 };
-    const price = list[idx].billingCycle === 'Monthly' ? planInfo.monthly : planInfo.yearly;
+    const cycle = list[idx].billingCycle || 'Monthly';
+    const price = getPlanPrice(targetPlan, cycle);
+    const mrr = getPlanMonthlyMrr(targetPlan, cycle);
 
     list[idx].planName = targetPlan;
     list[idx].status = 'Active';
     list[idx].amount = price;
 
     setItem(STORAGE_KEYS.SUBSCRIPTIONS, list);
-    subscriptionManagementApi.syncCustomerRecord(list[idx].customerEmail, targetPlan, 'Active', planInfo.monthly);
+    subscriptionManagementApi.syncCustomerRecord(list[idx].customerEmail, targetPlan, 'Active', mrr);
     pushNotification('Subscription Upgraded', `Your subscription was upgraded to ${targetPlan}.`, 'success');
     return list[idx];
   },
@@ -141,15 +166,16 @@ export const subscriptionManagementApi = {
     const idx = list.findIndex((s) => s.id === subscriptionId);
     if (idx === -1) throw new Error('Subscription not found');
 
-    const planInfo = PLAN_PRICES[targetPlan] || { monthly: 1999, yearly: 19990 };
-    const price = list[idx].billingCycle === 'Monthly' ? planInfo.monthly : planInfo.yearly;
+    const cycle = list[idx].billingCycle || 'Monthly';
+    const price = getPlanPrice(targetPlan, cycle);
+    const mrr = getPlanMonthlyMrr(targetPlan, cycle);
 
     list[idx].planName = targetPlan;
     list[idx].status = 'Active';
     list[idx].amount = price;
 
     setItem(STORAGE_KEYS.SUBSCRIPTIONS, list);
-    subscriptionManagementApi.syncCustomerRecord(list[idx].customerEmail, targetPlan, 'Active', planInfo.monthly);
+    subscriptionManagementApi.syncCustomerRecord(list[idx].customerEmail, targetPlan, 'Active', mrr);
     pushNotification('Subscription Downgraded', `Your subscription was downgraded to ${targetPlan}.`, 'warning');
     return list[idx];
   },
@@ -192,17 +218,15 @@ export const subscriptionManagementApi = {
     const idx = list.findIndex((s) => s.id === subscriptionId);
     if (idx === -1) throw new Error('Subscription not found');
 
-    const nextBilling = new Date();
-    if (list[idx].billingCycle === 'Monthly') nextBilling.setMonth(nextBilling.getMonth() + 1);
-    else nextBilling.setFullYear(nextBilling.getFullYear() + 1);
-
-    const planInfo = PLAN_PRICES[list[idx].planName] || { monthly: 4999, yearly: 49990 };
+    const cycle = list[idx].billingCycle || 'Monthly';
+    const nextBillingDate = calculateNextBillingDate(cycle);
+    const mrr = getPlanMonthlyMrr(list[idx].planName, cycle);
 
     list[idx].status = 'Active';
-    list[idx].nextBillingDate = nextBilling.toISOString().split('T')[0];
+    list[idx].nextBillingDate = nextBillingDate;
 
     setItem(STORAGE_KEYS.SUBSCRIPTIONS, list);
-    subscriptionManagementApi.syncCustomerRecord(list[idx].customerEmail, list[idx].planName, 'Active', planInfo.monthly);
+    subscriptionManagementApi.syncCustomerRecord(list[idx].customerEmail, list[idx].planName, 'Active', mrr);
     pushNotification('Subscription Renewed', `Your ${list[idx].planName} subscription has been renewed.`, 'success');
     return list[idx];
   },

@@ -3,7 +3,9 @@ export interface Plan {
   name: string;
   description: string;
   priceMonthly: number;
+  priceQuarterly: number;
   priceYearly: number;
+  billingCycle?: 'Monthly' | 'Quarterly' | 'Yearly';
   features: string[];
   isPopular?: boolean;
   activeSubscribers: number;

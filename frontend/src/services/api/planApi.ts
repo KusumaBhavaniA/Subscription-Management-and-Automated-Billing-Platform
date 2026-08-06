@@ -6,6 +6,7 @@ export interface PlanPayload {
   name: string;
   description: string;
   priceMonthly: number;
+  priceQuarterly: number;
   priceYearly: number;
   features: string[];
   maxCustomers?: string;
@@ -21,6 +22,11 @@ export const planApi = {
     return getItem<Plan[]>(STORAGE_KEYS.PLANS, INITIAL_PLANS);
   },
 
+  getPlanDetails: async (planId: string): Promise<Plan | null> => {
+    const list = getItem<Plan[]>(STORAGE_KEYS.PLANS, INITIAL_PLANS);
+    return list.find((p) => p.id === planId) || null;
+  },
+
   createPlan: async (payload: PlanPayload): Promise<Plan> => {
     const list = getItem<Plan[]>(STORAGE_KEYS.PLANS, INITIAL_PLANS);
     const newPlan: Plan = {
@@ -28,6 +34,7 @@ export const planApi = {
       name: payload.name.trim(),
       description: payload.description.trim(),
       priceMonthly: payload.priceMonthly,
+      priceQuarterly: payload.priceQuarterly,
       priceYearly: payload.priceYearly,
       features: payload.features,
       maxCustomers: payload.maxCustomers || '1,000 Customers',

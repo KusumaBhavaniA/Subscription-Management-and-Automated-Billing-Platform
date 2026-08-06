@@ -130,7 +130,7 @@ export const CustomerDashboard: React.FC = () => {
                   </span>
                   <div className="flex items-center gap-1.5 font-extrabold text-sm text-heading">
                     <BookmarkCheck className="w-3.5 h-3.5 text-primary" />
-                    <span>{hasActiveSubscription ? activeSub?.planName : 'None'}</span>
+                    <span>{hasActiveSubscription ? `${activeSub?.planName} (${activeSub?.billingCycle})` : 'None'}</span>
                   </div>
                 </div>
 
@@ -229,6 +229,7 @@ export const CustomerDashboard: React.FC = () => {
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-lg font-black text-heading">{activeSub.planName}</h3>
+                  <Badge variant="brand">{activeSub.billingCycle}</Badge>
                   {getSubStatusBadge(activeSub.status)}
                 </div>
                 <p className="text-xs text-secondaryText mt-0.5 font-medium">

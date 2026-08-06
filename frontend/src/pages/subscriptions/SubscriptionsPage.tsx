@@ -366,7 +366,8 @@ export const SubscriptionsPage: React.FC = () => {
             onChange={(e) => setSelectedCycle(e.target.value as BillingCycle)}
             options={[
               { value: 'Monthly', label: 'Monthly Auto-Billing' },
-              { value: 'Yearly', label: 'Yearly Auto-Billing (Discounted)' },
+              { value: 'Quarterly', label: 'Quarterly Auto-Billing (Save 10%)' },
+              { value: 'Yearly', label: 'Yearly Auto-Billing (Save 20%)' },
             ]}
           />
 

@@ -27,8 +27,12 @@ import { CustomerPlansPage } from './pages/plans/CustomerPlansPage';
 import { SubscriptionsPage } from './pages/subscriptions/SubscriptionsPage';
 import { InvoicesPage } from './pages/invoices/InvoicesPage';
 import { PaymentsPage } from './pages/payments/PaymentsPage';
+import { PaymentPage } from './pages/payments/PaymentPage';
+import { PaymentSuccessPage } from './pages/payments/PaymentSuccessPage';
+import { PaymentFailedPage } from './pages/payments/PaymentFailedPage';
 import { AnalyticsPage } from './pages/analytics/AnalyticsPage';
 import { ReportsPage } from './pages/reports/ReportsPage';
+import { BillingSummaryPage } from './pages/billing/BillingSummaryPage';
 import { SettingsPage } from './pages/settings/SettingsPage';
 import { ProfilePage } from './pages/profile/ProfilePage';
 import { SupportPage } from './pages/support/SupportPage';
@@ -97,7 +101,11 @@ export const AppContent: React.FC = () => {
               <Route path="subscriptions" element={<SubscriptionsPage />} />
               <Route path="invoices" element={<InvoicesPage />} />
               <Route path="payments" element={<PaymentsPage />} />
-              <Route path="reports" element={<ReportsPage />} />
+              <Route path="payment" element={<PaymentPage />} />
+              <Route path="payment-success" element={<PaymentSuccessPage />} />
+              <Route path="payment-failed" element={<PaymentFailedPage />} />
+              <Route path="billing-summary" element={<BillingSummaryPage />} />
+              <Route path="reports" element={<Navigate to="/customer/billing-summary" replace />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="profile" element={<ProfilePage />} />
               <Route path="support" element={<SupportPage />} />
