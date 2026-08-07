@@ -1,5 +1,5 @@
 export type SubscriptionStatus = 'Active' | 'Inactive' | 'Expired' | 'Cancelled';
-export type BillingCycle = 'Monthly' | 'Yearly';
+export type BillingCycle = 'Monthly' | 'Quarterly' | 'Yearly';
 
 export interface Subscription {
   id: string;

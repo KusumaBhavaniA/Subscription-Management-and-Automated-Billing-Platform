@@ -55,14 +55,6 @@ export const useSearch = () => {
         iconName: 'DollarSign',
       },
       {
-        id: 'reports',
-        title: 'Reports & Export',
-        category: 'Analytics',
-        path: `${rolePrefix}/reports`,
-        description: 'Financial summaries, tax statements and audit logs',
-        iconName: 'BarChart2',
-      },
-      {
         id: 'settings',
         title: 'Workspace Settings',
         category: 'Preferences',
@@ -105,17 +97,35 @@ export const useSearch = () => {
           path: '/admin/analytics',
           description: 'Deep dive into MRR, Churn rate, LTV and growth',
           iconName: 'PieChart',
+        },
+        {
+          id: 'reports',
+          title: 'Reports & Export',
+          category: 'Analytics',
+          path: '/admin/reports',
+          description: 'Financial summaries, tax statements and audit logs',
+          iconName: 'BarChart2',
         }
       );
     } else {
-      commonPages.push({
-        id: 'support',
-        title: 'Customer Support',
-        category: 'Help',
-        path: '/customer/support',
-        description: 'Contact support, open tickets and view FAQs',
-        iconName: 'HelpCircle',
-      });
+      commonPages.push(
+        {
+          id: 'billing-summary',
+          title: 'Billing Summary',
+          category: 'Billing',
+          path: '/customer/billing-summary',
+          description: 'Personal spending overview, payment history & savings statements',
+          iconName: 'BarChart2',
+        },
+        {
+          id: 'support',
+          title: 'Customer Support',
+          category: 'Help',
+          path: '/customer/support',
+          description: 'Contact support, open tickets and view FAQs',
+          iconName: 'HelpCircle',
+        }
+      );
     }
 
     return commonPages;

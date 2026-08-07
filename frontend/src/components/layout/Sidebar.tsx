@@ -56,7 +56,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onCloseMobile })
     { label: 'My Subscription', path: `${rolePrefix}/subscriptions`, icon: CreditCard },
     { label: 'My Invoices', path: `${rolePrefix}/invoices`, icon: FileText },
     { label: 'Payments', path: `${rolePrefix}/payments`, icon: DollarSign },
-    { label: 'Reports', path: `${rolePrefix}/reports`, icon: BarChart2 },
+    { label: 'Billing Summary', path: `${rolePrefix}/billing-summary`, icon: BarChart2 },
     { label: 'Profile', path: `${rolePrefix}/profile`, icon: User },
     { label: 'Settings', path: `${rolePrefix}/settings`, icon: Settings },
     { label: 'Support', path: '/customer/support', icon: HelpCircle },
