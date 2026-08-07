@@ -292,7 +292,11 @@ def login_user(
 
 @router.get("/me")
 def get_me(current_user: User = Depends(get_current_user)):
-    return _user_response(current_user)
+    return {
+        "success": True,
+        "message": "User fetched successfully.",
+        "data": _user_response(current_user),
+    }
 
 
 # ---------------------------------------------------------------------------

@@ -16,6 +16,7 @@ import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
 import { VerifyEmailPage } from './pages/auth/VerifyEmailPage';
 import { AuthCallbackPage } from './pages/auth/AuthCallbackPage';
+import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
 
 import { AdminDashboard } from './pages/dashboard/AdminDashboard';
 import { CustomerDashboard } from './pages/dashboard/CustomerDashboard';
@@ -72,6 +73,7 @@ export const AppContent: React.FC = () => {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/auth/callback" element={<AuthCallbackPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
 
         {/* Protected App Routes */}
         <Route element={<ProtectedRoute />}>

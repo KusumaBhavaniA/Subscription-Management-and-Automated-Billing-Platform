@@ -9,6 +9,7 @@ import { Input } from '../../components/common/Input';
 import { BPLogo } from '../../components/common/BPLogo';
 import { SocialAuthButtons } from '../../components/auth/SocialAuthButtons';
 import { Modal } from '../../components/common/Modal';
+import { authService } from '../../services/authService';
 
 export const LoginPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<UserRole>('Customer');
@@ -19,6 +20,10 @@ export const LoginPage: React.FC = () => {
   const [isUnverified, setIsUnverified] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
+  const [isSendingReset, setIsSendingReset] = useState(false);
+  const [forgotPasswordNotice, setForgotPasswordNotice] = useState<string | null>(null);
+  const [forgotPasswordError, setForgotPasswordError] = useState<string | null>(null);
 
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -37,6 +42,37 @@ export const LoginPage: React.FC = () => {
 
   const validateEmailFormat = (val: string): boolean => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim());
+  };
+
+  const openForgotPassword = () => {
+    setForgotPasswordEmail(email);
+    setForgotPasswordNotice(null);
+    setForgotPasswordError(null);
+    setIsForgotPasswordOpen(true);
+  };
+
+  const handleSendResetLink = async () => {
+    setForgotPasswordError(null);
+
+    if (!validateEmailFormat(forgotPasswordEmail)) {
+      setForgotPasswordError('Please enter a valid email address.');
+      return;
+    }
+
+    setIsSendingReset(true);
+    try {
+      const response = await authService.forgotPassword(forgotPasswordEmail.trim().toLowerCase());
+      if (!response?.success) {
+        throw new Error(response?.error || response?.message || 'Failed to send reset instructions.');
+      }
+      setForgotPasswordNotice(
+        response.message || 'If that email is registered, you will receive a reset link shortly.'
+      );
+    } catch (err: any) {
+      setForgotPasswordError(err.message || 'Something went wrong. Please try again.');
+    } finally {
+      setIsSendingReset(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -237,7 +273,7 @@ export const LoginPage: React.FC = () => {
             <div className="flex items-center justify-between text-xs pt-0.5">
               <button
                 type="button"
-                onClick={() => setIsForgotPasswordOpen(true)}
+                onClick={openForgotPassword}
                 className="text-secondaryText font-semibold hover:text-primary hover:underline transition-colors cursor-pointer"
               >
                 Forgot Password?
@@ -285,36 +321,54 @@ export const LoginPage: React.FC = () => {
         maxWidth="sm"
       >
         <div className="space-y-4">
-          <p className="text-xs text-secondaryText leading-relaxed font-medium">
-            Enter your account email address. Password reset instructions will be sent via FastAPI backend (<code className="font-mono text-primary font-bold">POST /api/auth/forgot-password</code>).
-          </p>
-          <Input
-            label="Email Address"
-            type="email"
-            placeholder="user@company.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            leftIcon={<Mail className="w-4 h-4" />}
-          />
+          {forgotPasswordNotice ? (
+            <div className="p-3.5 rounded-xl bg-success-bg border border-success-border text-success-text text-xs flex items-center gap-2 font-semibold">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span>{forgotPasswordNotice}</span>
+            </div>
+          ) : (
+            <p className="text-xs text-secondaryText leading-relaxed font-medium">
+              Enter your account email address and we'll send you a link to reset your password.
+            </p>
+          )}
+
+          {forgotPasswordError && (
+            <div className="p-3.5 rounded-xl bg-danger-bg border border-danger-border text-danger-text text-xs flex items-center gap-2 font-semibold">
+              <AlertCircle className="w-4 h-4 shrink-0 text-danger" />
+              <span>{forgotPasswordError}</span>
+            </div>
+          )}
+
+          {!forgotPasswordNotice && (
+            <Input
+              label="Email Address"
+              type="email"
+              placeholder="user@company.com"
+              value={forgotPasswordEmail}
+              onChange={(e) => setForgotPasswordEmail(e.target.value)}
+              leftIcon={<Mail className="w-4 h-4" />}
+              disabled={isSendingReset}
+            />
+          )}
+
           <div className="flex items-center gap-2 justify-end pt-2">
             <Button
               variant="outline"
               size="sm"
               onClick={() => setIsForgotPasswordOpen(false)}
             >
-              Cancel
+              {forgotPasswordNotice ? 'Close' : 'Cancel'}
             </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => {
-                setIsForgotPasswordOpen(false);
-                setError(null);
-                alert(`Password reset requested for ${email || 'your email'}. Check your inbox.`);
-              }}
-            >
-              Send Reset Link
-            </Button>
+            {!forgotPasswordNotice && (
+              <Button
+                variant="primary"
+                size="sm"
+                isLoading={isSendingReset}
+                onClick={handleSendResetLink}
+              >
+                Send Reset Link
+              </Button>
+            )}
           </div>
         </div>
       </Modal>

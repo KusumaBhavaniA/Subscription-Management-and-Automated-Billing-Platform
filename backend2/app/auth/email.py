@@ -37,9 +37,12 @@ def _send(to_email: str, subject: str, html_body: str, text_body: str) -> None:
         )
         return
 
+    smtp_user = settings.SMTP_USER.strip()
+    smtp_password = settings.SMTP_PASSWORD.replace(" ", "").strip()
+
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    from_email = settings.EMAIL_FROM or settings.SMTP_USER
+    from_email = settings.EMAIL_FROM or smtp_user
     msg["From"] = f"{settings.EMAIL_FROM_NAME} <{from_email}>"
     msg["To"] = to_email
 
@@ -54,7 +57,7 @@ def _send(to_email: str, subject: str, html_body: str, text_body: str) -> None:
         ) as server:
             server.ehlo()
             server.starttls(context=ssl.create_default_context())
-            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+            server.login(smtp_user, smtp_password)
             server.sendmail(from_email, [to_email], msg.as_string())
         logger.info("Email sent to %s — subject: %s", to_email, subject)
     except Exception as exc:
