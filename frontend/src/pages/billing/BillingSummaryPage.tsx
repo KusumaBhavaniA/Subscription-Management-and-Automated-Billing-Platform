@@ -37,8 +37,15 @@ export const BillingSummaryPage: React.FC = () => {
     const fetchBillingSummary = async () => {
       setIsLoading(true);
       try {
-        const summary = await billingApi.getCustomerBillingSummary(user?.email || 'rohan.sharma@techcorp.in');
-        setData(summary);
+        if (user?.email) {
+          const summary = await billingApi.getCustomerBillingSummary(
+            user.email,
+            user.createdAt || user.registrationDate
+          );
+          setData(summary);
+        } else {
+          setData(null);
+        }
       } catch (err) {
         console.error('Failed to load customer billing summary:', err);
       } finally {
@@ -278,7 +285,7 @@ export const BillingSummaryPage: React.FC = () => {
               3. Payment Summary
             </h3>
             <span className="text-xs font-bold text-secondaryText">
-              Latest: {formatDate(data.paymentSummary.latestPaymentDate || '2026-07-05')}
+              Latest: {data.paymentSummary.latestPaymentDate ? formatDate(data.paymentSummary.latestPaymentDate) : 'N/A'}
             </span>
           </div>
 
@@ -343,7 +350,7 @@ export const BillingSummaryPage: React.FC = () => {
           <div className="pt-2 flex items-center justify-between text-xs font-semibold text-secondaryText px-1">
             <span>Latest Account Transaction Date</span>
             <span className="font-bold text-heading font-mono">
-              {formatDate(data.paymentSummary.latestPaymentDate || '2026-07-05')}
+              {data.paymentSummary.latestPaymentDate ? formatDate(data.paymentSummary.latestPaymentDate) : 'N/A'}
             </span>
           </div>
         </Card>
@@ -379,18 +386,26 @@ export const BillingSummaryPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {data.discounts.map((disc) => (
-                <tr key={disc.id} className="hover:bg-secondary/60 transition-colors">
-                  <td className="p-3 font-bold text-heading flex items-center gap-2">
-                    <Tag className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                    <span>{disc.name}</span>
-                  </td>
-                  <td className="p-3 text-secondaryText font-medium font-mono">{formatDate(disc.date)}</td>
-                  <td className="p-3 text-right font-black text-emerald-600 dark:text-emerald-400">
-                    +{formatCurrency(disc.amountSaved)}
+              {data.discounts.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="p-4 text-center text-secondaryText font-medium">
+                    No discount or promotional offers applied yet.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                data.discounts.map((disc) => (
+                  <tr key={disc.id} className="hover:bg-secondary/60 transition-colors">
+                    <td className="p-3 font-bold text-heading flex items-center gap-2">
+                      <Tag className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                      <span>{disc.name}</span>
+                    </td>
+                    <td className="p-3 text-secondaryText font-medium font-mono">{formatDate(disc.date)}</td>
+                    <td className="p-3 text-right font-black text-emerald-600 dark:text-emerald-400">
+                      +{formatCurrency(disc.amountSaved)}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
             <tfoot>
               <tr className="bg-secondary/80 border-t-2 border-border font-bold">
@@ -433,19 +448,27 @@ export const BillingSummaryPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {data.recentInvoices.map((inv) => (
-                <tr key={inv.id} className="hover:bg-secondary/60 transition-colors">
-                  <td className="p-3 font-mono font-bold text-primary">{inv.invoiceNumber}</td>
-                  <td className="p-3 text-secondaryText font-medium font-mono">{formatDate(inv.issueDate)}</td>
-                  <td className="p-3 font-bold text-heading">{formatCurrency(inv.amount)}</td>
-                  <td className="p-3 text-mutedText font-semibold">Stripe (Visa •••• 4242)</td>
-                  <td className="p-3 text-right">
-                    <Badge variant={inv.status === 'Paid' ? 'success' : inv.status === 'Overdue' ? 'danger' : 'warning'}>
-                      {inv.status}
-                    </Badge>
+              {data.recentInvoices.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="p-4 text-center text-secondaryText font-medium">
+                    No invoice statements available yet.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                data.recentInvoices.map((inv) => (
+                  <tr key={inv.id} className="hover:bg-secondary/60 transition-colors">
+                    <td className="p-3 font-mono font-bold text-primary">{inv.invoiceNumber}</td>
+                    <td className="p-3 text-secondaryText font-medium font-mono">{formatDate(inv.issueDate)}</td>
+                    <td className="p-3 font-bold text-heading">{formatCurrency(inv.amount)}</td>
+                    <td className="p-3 text-mutedText font-semibold">Stripe (Visa •••• 4242)</td>
+                    <td className="p-3 text-right">
+                      <Badge variant={inv.status === 'Paid' ? 'success' : inv.status === 'Overdue' ? 'danger' : 'warning'}>
+                        {inv.status}
+                      </Badge>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

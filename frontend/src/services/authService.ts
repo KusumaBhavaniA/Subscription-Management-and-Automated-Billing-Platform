@@ -2,6 +2,7 @@ import { User, UserRole, RegisterCustomerDTO, AuthSession } from '../types/auth'
 import { Customer } from '../types/customer';
 import { STORAGE_KEYS, getItem, setItem, removeItem } from '../utils/storage';
 import { authApi } from './api/authApi';
+import { ENABLED_OAUTH_PROVIDERS } from '../config/authConfig';
 
 /**
  * HARDCODED DEMO ADMIN CREDENTIALS FOR DASHBOARD PREVIEW
@@ -266,6 +267,10 @@ export const authService = {
    * SOCIAL LOGIN & OAUTH 2.0 INTEGRATION
    */
   socialLogin: async (provider: 'Google' | 'Microsoft' | 'Apple'): Promise<AuthSession> => {
+    if (!ENABLED_OAUTH_PROVIDERS[provider]) {
+      throw new Error(`Authentication with ${provider} is coming soon.`);
+    }
+
     await new Promise((resolve) => setTimeout(resolve, 300));
 
     if (provider === 'Google') await authApi.googleLogin({});
@@ -347,7 +352,7 @@ export const authService = {
           firstName: newUser.firstName,
           lastName: newUser.lastName,
           email: cleanEmail,
-          phone: '+91 9876543210',
+          phone: '',
           status: 'Verified',
           subscriptionPlan: 'None',
           subscriptionStatus: 'Inactive',
@@ -391,6 +396,63 @@ export const authService = {
     if (idx !== -1 && users[idx].linkedProviders) {
       users[idx].linkedProviders = users[idx].linkedProviders!.filter((p) => p !== provider);
       setItem(STORAGE_KEYS.USERS, users);
+    }
+  },
+
+  isProfileIncomplete: (user: User | null): boolean => {
+    if (!user || user.role !== 'Customer') return false;
+    const phone = user.phoneNumber || (user as any).phone || '';
+    return !phone || !phone.trim();
+  },
+
+  checkProfileCompleteness: async (user: User) => {
+    if (!user || user.role !== 'Customer') return;
+
+    const phone = user.phoneNumber || (user as any).phone || '';
+    const missingFields: string[] = [];
+    if (!user.fullName || !user.fullName.trim()) missingFields.push('Full Name');
+    if (!user.email || !user.email.trim()) missingFields.push('Email Address');
+    if (!phone || !phone.trim()) missingFields.push('Mobile Number');
+
+    if (missingFields.length > 0) {
+      const existingNotifs = getItem<any[]>(STORAGE_KEYS.NOTIFICATIONS, []);
+      const alreadyHasNotif = existingNotifs.some(
+        (n) => (n.title === 'Complete Your Profile' || n.title === 'Profile Incomplete') && !n.isRead
+      );
+
+      if (!alreadyHasNotif) {
+        const notifItem = {
+          id: `notif-${Date.now()}`,
+          title: 'Complete Your Profile',
+          message: 'Your profile information is incomplete. Please update your details.',
+          timestamp: 'Just now',
+          isRead: false,
+          type: 'warning',
+          actionLabel: 'Complete Profile',
+          actionUrl: '/customer/profile',
+        };
+        existingNotifs.unshift(notifItem);
+        setItem(STORAGE_KEYS.NOTIFICATIONS, existingNotifs);
+      }
+
+      try {
+        await authApi.notifyProfileIncomplete({
+          email: user.email,
+          fullName: user.fullName,
+          missingFields,
+        });
+      } catch (e) {
+        // Safe fallback
+      }
+    } else {
+      // Profile is complete -> remove any profile incomplete notification
+      const existingNotifs = getItem<any[]>(STORAGE_KEYS.NOTIFICATIONS, []);
+      const filtered = existingNotifs.filter(
+        (n) => n.title !== 'Complete Your Profile' && n.title !== 'Profile Incomplete'
+      );
+      if (filtered.length !== existingNotifs.length) {
+        setItem(STORAGE_KEYS.NOTIFICATIONS, filtered);
+      }
     }
   },
 };

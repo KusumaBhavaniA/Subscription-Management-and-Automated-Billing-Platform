@@ -21,6 +21,10 @@ export const AuthCallbackPage: React.FC = () => {
         acceptSession({ token, user: response.data });
         if (response.data.role === 'Admin') {
           navigate('/admin/dashboard');
+        } else if (!response.data.phoneNumber || !response.data.phoneNumber.trim()) {
+          navigate('/profile?completeMobile=true', {
+            state: { message: 'Authentication successful. Please enter your mobile number to complete profile registration.' },
+          });
         } else {
           navigate('/customer/dashboard');
         }

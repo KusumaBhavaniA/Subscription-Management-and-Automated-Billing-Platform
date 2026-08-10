@@ -1,73 +1,189 @@
-import { Customer, CustomerStatus } from '../../types/customer';
+import { Customer } from '../../types/customer';
 import { STORAGE_KEYS, getItem, setItem } from '../../utils/storage';
 
-export interface CreateCustomerPayload {
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  country?: string;
-  address?: string;
-}
+const getAuthToken = (): string | null => {
+  try {
+    const item = localStorage.getItem(STORAGE_KEYS.AUTH);
+    if (!item) return null;
+    const parsed = JSON.parse(item);
+    return parsed.token || parsed.access_token || null;
+  } catch {
+    return null;
+  }
+};
+
+const BACKEND_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000';
 
 export const customerApi = {
-  getCustomers: async (): Promise<Customer[]> => {
-    return getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
+  /**
+   * Fetch customer list for Admin by status filter: 'active' | 'suspended' | 'deleted'
+   */
+  getCustomers: async (filterTab: 'active' | 'suspended' | 'deleted' = 'active'): Promise<Customer[]> => {
+    try {
+      const token = getAuthToken();
+      if (token) {
+        const response = await fetch(`${BACKEND_URL}/auth/admin/customers?status_filter=${filterTab}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        if (response.ok) {
+          const resData = await response.json();
+          if (resData.success && Array.isArray(resData.data)) {
+            const mapped: Customer[] = resData.data.map((u: any) => ({
+              id: u.id,
+              customerId: u.customerId,
+              name: u.fullName || `${u.firstName || ''} ${u.lastName || ''}`.trim(),
+              firstName: u.firstName,
+              lastName: u.lastName,
+              email: u.email,
+              phone: u.phoneNumber || u.phone || '',
+              status: u.status || (u.isVerified ? 'Verified' : 'Pending'),
+              accountStatus: u.accountStatus || 'ACTIVE',
+              isVerified: u.isVerified,
+              subscriptionPlan: u.subscriptionPlan || u.currentPlan || 'Starter',
+              subscriptionStatus: u.subscriptionStatus || 'Active',
+              mrr: u.mrr || 4999,
+              totalSpent: u.totalSpent || 0,
+              joinedDate: u.joinedDate || u.createdAt?.split('T')[0] || new Date().toISOString().split('T')[0],
+              registrationDate: u.registrationDate,
+              country: u.country || 'India',
+              deletedAt: u.deletedAt,
+              deletedBy: u.deletedBy,
+              suspendedAt: u.suspendedAt,
+              suspendedBy: u.suspendedBy,
+              suspensionReason: u.suspensionReason,
+            }));
+            return mapped;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Backend customer list fetch failed, falling back to local storage:', err);
+    }
+
+    // Fallback using LocalStorage
+    const list = getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
+    if (filterTab === 'active') {
+      return list.filter(
+        (c) =>
+          c.isVerified !== false &&
+          c.status !== 'Pending Verification' &&
+          c.status !== 'Pending' &&
+          c.accountStatus !== 'SUSPENDED' &&
+          c.accountStatus !== 'DELETED' &&
+          !c.deletedAt
+      );
+    } else if (filterTab === 'suspended') {
+      return list.filter((c) => c.accountStatus === 'SUSPENDED' || c.status === 'Suspended');
+    } else if (filterTab === 'deleted') {
+      return list.filter((c) => c.accountStatus === 'DELETED' || !!c.deletedAt);
+    }
+    return list;
   },
 
   getCustomerById: async (id: string): Promise<Customer | null> => {
-    const list = getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
-    return list.find((c) => c.id === id || c.customerId === id) || null;
+    const active = await customerApi.getCustomers('active');
+    const suspended = await customerApi.getCustomers('suspended');
+    const deleted = await customerApi.getCustomers('deleted');
+    const all = [...active, ...suspended, ...deleted];
+    return all.find((c) => c.id === id || c.customerId === id) || null;
   },
 
   /**
-   * STEP 5: Create Customer
-   * Manually created by Admin.
-   * Only creates the customer profile.
-   * Do NOT assign a subscription automatically (No Plan, Inactive, MRR ₹0.00).
+   * Admin suspends customer account
    */
-  createCustomer: async (payload: CreateCustomerPayload): Promise<Customer> => {
-    const list = getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
-    const cleanEmail = payload.email.trim().toLowerCase();
-    
-    if (list.some((c) => c.email.toLowerCase() === cleanEmail)) {
-      throw new Error('Customer with this email address already exists.');
+  suspendCustomer: async (customerId: string, reason: string = ''): Promise<void> => {
+    try {
+      const token = getAuthToken();
+      if (token) {
+        await fetch(`${BACKEND_URL}/auth/admin/customers/${customerId}/suspend`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ reason }),
+        });
+      }
+    } catch (err) {
+      console.error('Backend suspend request failed:', err);
     }
 
-    const customerId = `CUS-2026-${Math.floor(100000 + Math.random() * 900000)}`;
-    const newCust: Customer = {
-      id: `cust-${Date.now()}`,
-      customerId,
-      name: `${payload.firstName.trim()} ${payload.lastName.trim()}`,
-      firstName: payload.firstName.trim(),
-      lastName: payload.lastName.trim(),
-      email: cleanEmail,
-      phone: payload.phone.trim(),
-      status: 'Verified',
-      subscriptionPlan: 'None',
-      subscriptionStatus: 'Inactive',
-      mrr: 0,
-      totalSpent: 0,
-      joinedDate: new Date().toISOString().split('T')[0],
-      registrationDate: new Date().toLocaleDateString('en-GB'),
-      country: payload.country || 'India',
-      address: payload.address || '',
-      themePreference: 'light',
-    };
-
-    list.unshift(newCust);
-    setItem(STORAGE_KEYS.CUSTOMERS, list);
-    return newCust;
-  },
-
-  updateCustomerStatus: async (customerId: string, status: CustomerStatus): Promise<Customer> => {
+    // Sync LocalStorage
     const list = getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
     const idx = list.findIndex((c) => c.id === customerId || c.customerId === customerId);
-    if (idx === -1) throw new Error('Customer not found');
+    if (idx !== -1) {
+      list[idx].accountStatus = 'SUSPENDED';
+      list[idx].status = 'Suspended';
+      list[idx].suspendedAt = new Date().toISOString();
+      list[idx].suspensionReason = reason;
+      setItem(STORAGE_KEYS.CUSTOMERS, list);
+    }
+  },
 
-    list[idx].status = status;
-    setItem(STORAGE_KEYS.CUSTOMERS, list);
-    return list[idx];
+  /**
+   * Admin restores customer account (from SUSPENDED or DELETED)
+   */
+  restoreCustomer: async (customerId: string): Promise<void> => {
+    try {
+      const token = getAuthToken();
+      if (token) {
+        await fetch(`${BACKEND_URL}/auth/admin/customers/${customerId}/restore`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+      }
+    } catch (err) {
+      console.error('Backend restore request failed:', err);
+    }
+
+    // Sync LocalStorage
+    const list = getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
+    const idx = list.findIndex((c) => c.id === customerId || c.customerId === customerId);
+    if (idx !== -1) {
+      list[idx].accountStatus = 'ACTIVE';
+      list[idx].status = 'Verified';
+      list[idx].deletedAt = null;
+      list[idx].deletedBy = null;
+      list[idx].suspendedAt = null;
+      list[idx].suspendedBy = null;
+      list[idx].suspensionReason = null;
+      setItem(STORAGE_KEYS.CUSTOMERS, list);
+    }
+  },
+
+  /**
+   * Admin soft-deletes customer account (moves to Recycle Bin)
+   */
+  softDeleteCustomer: async (customerId: string): Promise<void> => {
+    try {
+      const token = getAuthToken();
+      if (token) {
+        await fetch(`${BACKEND_URL}/auth/admin/customers/${customerId}/soft-delete`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+      }
+    } catch (err) {
+      console.error('Backend soft-delete request failed:', err);
+    }
+
+    // Sync LocalStorage
+    const list = getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
+    const idx = list.findIndex((c) => c.id === customerId || c.customerId === customerId);
+    if (idx !== -1) {
+      list[idx].accountStatus = 'DELETED';
+      list[idx].deletedAt = new Date().toISOString();
+      setItem(STORAGE_KEYS.CUSTOMERS, list);
+    }
   },
 
   assignPlan: async (customerId: string, planName: string, mrr: number): Promise<Customer> => {

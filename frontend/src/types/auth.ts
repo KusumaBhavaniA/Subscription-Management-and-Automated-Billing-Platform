@@ -10,6 +10,7 @@ export interface User {
   lastName?: string;
   email: string;
   phoneNumber?: string;
+  address?: string;
   country?: string;
   role: UserRole;
   createdAt: string;

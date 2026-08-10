@@ -49,6 +49,7 @@ export const SUPPORT_CATEGORIES: Record<TicketCategory, string[]> = {
     'Pause Subscription',
   ],
   Account: [
+    'Account Suspension / Restoration',
     'Login Problem',
     'Email Verification',
     'Password Reset',
