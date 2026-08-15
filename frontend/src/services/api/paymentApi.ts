@@ -1,6 +1,7 @@
 import { STORAGE_KEYS, getItem, setItem } from '../../utils/storage';
 import { subscriptionManagementApi } from './subscriptionManagementApi';
 import { BillingCycle } from '../../types/subscription';
+import { getPaymentTransactions } from '../../utils/paymentData';
 
 export interface PaymentOrderRequest {
   planId?: string;
@@ -193,6 +194,23 @@ export const paymentApi = {
       customerName: orderData.customerName,
       customerEmail: orderData.customerEmail,
     };
+  },
+
+  /**
+   * Get payment transactions for authenticated user.
+   * If role is Customer: ONLY returns payments matching customerEmail.
+   * If role is Admin: returns all payment transactions.
+   */
+  getPaymentTransactions: async (email: string, role?: string) => {
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    const history = getPaymentTransactions();
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (role === 'Admin') {
+      return history;
+    }
+
+    return history.filter((t) => t.customerEmail?.toLowerCase() === cleanEmail);
   },
 
   /**

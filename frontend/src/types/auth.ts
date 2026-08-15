@@ -10,10 +10,12 @@ export interface User {
   lastName?: string;
   email: string;
   phoneNumber?: string;
+  address?: string;
   country?: string;
   role: UserRole;
   createdAt: string;
   status?: 'Verified' | 'Pending Verification' | 'Pending' | 'Suspended';
+  accountStatus?: 'ACTIVE' | 'SUSPENDED' | 'DELETED';
   registrationDate?: string;
   currentPlan?: string;
   subscriptionStatus?: string;

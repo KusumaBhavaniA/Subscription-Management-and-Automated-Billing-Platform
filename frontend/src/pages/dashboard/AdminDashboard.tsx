@@ -6,7 +6,6 @@ import {
   FileText,
   ArrowUpRight,
   TrendingUp,
-  Plus,
   Download,
   Headphones,
   AlertCircle,
@@ -20,13 +19,14 @@ import {
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
-import { formatCurrency, formatDate } from '../../utils/formatters';
+import { formatCurrency } from '../../utils/formatters';
 import { useNavigate } from 'react-router-dom';
 import { getItem, STORAGE_KEYS } from '../../utils/storage';
 import { Invoice } from '../../types/invoice';
 import { Customer } from '../../types/customer';
 import { Ticket } from '../../types/ticket';
 import { Subscription } from '../../types/subscription';
+import { PaymentCalendar } from '../../components/calendar/PaymentCalendar';
 
 export const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -162,14 +162,6 @@ export const AdminDashboard: React.FC = () => {
           >
             Export Report
           </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            leftIcon={<Plus className="w-4 h-4" />}
-            onClick={() => navigate('/admin/customers')}
-          >
-            Add Customer
-          </Button>
         </div>
       </div>
 
@@ -203,12 +195,14 @@ export const AdminDashboard: React.FC = () => {
         })}
       </div>
 
+      {/* Payment Calendar Section */}
+      <PaymentCalendar />
+
       {/* Quick Actions */}
       <Card className="p-5">
         <h2 className="text-sm font-bold text-heading mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {[
-            { label: 'Add Customer', icon: Users, path: '/admin/customers', color: 'text-violet-500', bg: 'bg-violet-500/10' },
             { label: 'Create Plan', icon: Layers, path: '/admin/plans', color: 'text-blue-500', bg: 'bg-blue-500/10' },
             { label: 'View Tickets', icon: Headphones, path: '/admin/support', color: 'text-rose-500', bg: 'bg-rose-500/10' },
             { label: 'Run Reports', icon: BarChart2, path: '/admin/reports', color: 'text-emerald-500', bg: 'bg-emerald-500/10' },

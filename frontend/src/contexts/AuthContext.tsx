@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, UserRole, RegisterCustomerDTO, AuthSession, SocialProvider } from '../types/auth';
 import { authService } from '../services/authService';
-import { STORAGE_KEYS, setItem } from '../utils/storage';
+import { STORAGE_KEYS, getItem, setItem } from '../utils/storage';
 
 interface AuthContextType {
   user: User | null;
@@ -10,6 +10,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string, role: UserRole, fullName?: string) => Promise<AuthSession>;
   socialLogin: (provider: SocialProvider) => Promise<AuthSession>;
+  acceptSession: (session: AuthSession) => void;
   logout: () => void;
   register: (dto: RegisterCustomerDTO) => Promise<{ email: string }>;
   verifyOTP: (email: string, otp: string) => Promise<{ success: boolean; message: string }>;
@@ -25,23 +26,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    const session = authService.getCurrentSession();
-    if (session && session.user) {
-      setUser(session.user);
-    }
-    setIsLoading(false);
+    const syncUser = () => {
+      const session = authService.getCurrentSession();
+      if (session && session.user) {
+        if (session.user.role === 'Customer') {
+          const customers = getItem<any[]>(STORAGE_KEYS.CUSTOMERS, []);
+          const cust = customers.find((c: any) => c.email?.toLowerCase() === session.user.email?.toLowerCase());
+          if (cust) {
+            session.user.accountStatus = cust.accountStatus || (cust.status === 'Suspended' ? 'SUSPENDED' : 'ACTIVE');
+            session.user.status = cust.status === 'Suspended' ? 'Suspended' : cust.status === 'Pending Verification' ? 'Pending Verification' : cust.status === 'Pending' ? 'Pending' : 'Verified';
+          }
+        }
+        setUser({ ...session.user });
+        authService.checkProfileCompleteness(session.user);
+      } else {
+        setUser(null);
+      }
+      setIsLoading(false);
+    };
+
+    syncUser();
+
+    window.addEventListener('storage_auth_updated', syncUser);
+    window.addEventListener('storage', syncUser);
+    return () => {
+      window.removeEventListener('storage_auth_updated', syncUser);
+      window.removeEventListener('storage', syncUser);
+    };
   }, []);
 
   const login = async (email: string, password: string, role: UserRole, fullName?: string): Promise<AuthSession> => {
     const session = await authService.login(email, password, role, fullName);
     setUser(session.user);
+    authService.checkProfileCompleteness(session.user);
     return session;
   };
 
   const socialLogin = async (provider: SocialProvider): Promise<AuthSession> => {
     const session = await authService.socialLogin(provider);
     setUser(session.user);
+    authService.checkProfileCompleteness(session.user);
     return session;
+  };
+
+  const acceptSession = (session: AuthSession) => {
+    setItem(STORAGE_KEYS.AUTH, session);
+    setUser(session.user);
+    authService.checkProfileCompleteness(session.user);
   };
 
   const logout = () => {
@@ -65,11 +96,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (user) {
       const newUserData = { ...user, ...updatedUser };
       setUser(newUserData);
+
       const session = authService.getCurrentSession();
       if (session) {
         session.user = newUserData;
         setItem(STORAGE_KEYS.AUTH, session);
       }
+
+      // Sync with STORAGE_KEYS.USERS
+      const users = getItem<any[]>(STORAGE_KEYS.USERS, []);
+      const userIdx = users.findIndex((u: any) => u.email?.toLowerCase() === newUserData.email?.toLowerCase());
+      if (userIdx !== -1) {
+        users[userIdx] = { ...users[userIdx], ...newUserData };
+        setItem(STORAGE_KEYS.USERS, users);
+      }
+
+      // Sync with STORAGE_KEYS.CUSTOMERS
+      if (newUserData.role === 'Customer') {
+        const customers = getItem<any[]>(STORAGE_KEYS.CUSTOMERS, []);
+        const custIdx = customers.findIndex((c: any) => c.email?.toLowerCase() === newUserData.email?.toLowerCase());
+        if (custIdx !== -1) {
+          customers[custIdx] = {
+            ...customers[custIdx],
+            name: newUserData.fullName,
+            firstName: newUserData.firstName,
+            lastName: newUserData.lastName,
+            phone: newUserData.phoneNumber || customers[custIdx].phone || '',
+            address: newUserData.address || customers[custIdx].address || '',
+            country: newUserData.country || customers[custIdx].country || 'India',
+          };
+          setItem(STORAGE_KEYS.CUSTOMERS, customers);
+        }
+      }
+
+      authService.checkProfileCompleteness(newUserData);
     }
   };
 
@@ -87,6 +147,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoading,
         login,
         socialLogin,
+        acceptSession,
         logout,
         register,
         verifyOTP,

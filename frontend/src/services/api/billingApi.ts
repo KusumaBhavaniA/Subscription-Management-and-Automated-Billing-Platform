@@ -2,6 +2,11 @@ import { getItem, STORAGE_KEYS } from '../../utils/storage';
 import { Customer } from '../../types/customer';
 import { Invoice } from '../../types/invoice';
 import { Subscription } from '../../types/subscription';
+import { User } from '../../types/auth';
+import { generateBillingStatementPdf } from '../../utils/pdf/billingStatementPdf';
+import { generatePaymentHistoryPdf } from '../../utils/pdf/paymentHistoryPdf';
+import { generateTaxInvoicePdf } from '../../utils/pdf/taxInvoicePdf';
+import { generatePaymentReceiptPdf } from '../../utils/pdf/paymentReceiptPdf';
 
 export interface DiscountRecord {
   id: string;
@@ -60,64 +65,75 @@ export interface CustomerBillingSummary {
   membershipStatus: string;
 }
 
+const hasActiveSubscriptionPlan = (planName?: string): boolean => {
+  return !!planName && planName !== 'None' && planName !== 'No active plan';
+};
+
 export const billingApi = {
   /**
    * Fetches customer-specific billing summary data aggregated from local storage & API services.
    */
-  getCustomerBillingSummary: async (email: string): Promise<CustomerBillingSummary> => {
+  getCustomerBillingSummary: async (email: string, userCreatedAt?: string): Promise<CustomerBillingSummary> => {
     // Simulate slight API latency
     await new Promise((resolve) => setTimeout(resolve, 150));
 
     const cleanEmail = email.trim().toLowerCase();
 
-    // 1. Fetch Customer record
-    const customers = getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
-    const customer = customers.find((c) => c.email.toLowerCase() === cleanEmail);
+    // 1. Fetch User & Customer record
+    const users = getItem<any[]>(STORAGE_KEYS.USERS, []);
+    const userRecord = users.find((u) => u.email?.toLowerCase() === cleanEmail);
 
-    // 2. Fetch Customer Invoices
+    const customers = getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
+    const customer = customers.find((c) => c.email?.toLowerCase() === cleanEmail);
+
+    // 2. Fetch Customer Invoices & Payments
     const invoices = getItem<Invoice[]>(STORAGE_KEYS.INVOICES, []);
-    const customerInvoices = invoices.filter((i) => i.customerEmail.toLowerCase() === cleanEmail);
+    const customerInvoices = invoices.filter((i) => i.customerEmail?.toLowerCase() === cleanEmail);
+
+    const payments = getItem<any[]>(STORAGE_KEYS.PAYMENTS, []);
+    const customerPayments = payments.filter((p) => p.customerEmail?.toLowerCase() === cleanEmail);
 
     // 3. Fetch Customer Subscriptions
     const subscriptions = getItem<Subscription[]>(STORAGE_KEYS.SUBSCRIPTIONS, []);
-    const activeSub = subscriptions.find((s) => s.customerEmail.toLowerCase() === cleanEmail);
+    const activeSub = subscriptions.find((s) => s.customerEmail?.toLowerCase() === cleanEmail);
 
     // Calculate metrics
     const paidInvoices = customerInvoices.filter((i) => i.status === 'Paid');
+    const successfulPayments = customerPayments.filter((p) => p.status === 'Success' || p.status === 'Paid');
+
     const pendingInvoices = customerInvoices.filter((i) => i.status === 'Pending');
     const overdueInvoices = customerInvoices.filter((i) => i.status === 'Overdue');
+    const failedPayments = customerPayments.filter((p) => p.status === 'Failed');
 
-    const totalSpent = paidInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+    const totalInvoiceSpent = paidInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+    const totalPaymentSpent = successfulPayments.reduce((sum, p) => sum + (p.amountPaid || p.amount || 0), 0);
+    const totalSpent = totalInvoiceSpent + totalPaymentSpent;
 
-    // Discounts mock collection for customer
-    const discounts: DiscountRecord[] = [
-      { id: 'disc-1', name: 'Welcome Offer (15% Off)', date: '2025-11-15', amountSaved: 1500, type: 'Percentage' },
-      { id: 'disc-2', name: 'Festival Promotion Discount', date: '2025-12-25', amountSaved: 1250, type: 'Flat' },
-      { id: 'disc-3', name: 'Referral Bonus Reward', date: '2026-02-10', amountSaved: 1000, type: 'Credit' },
-      { id: 'disc-4', name: 'Annual Plan Savings', date: '2026-04-01', amountSaved: 2000, type: 'Tier Bonus' },
-      { id: 'disc-5', name: 'Cashback Coupon Claimed', date: '2026-06-15', amountSaved: 500, type: 'Cashback' },
-    ];
-    const totalSavings = discounts.reduce((sum, d) => sum + d.amountSaved, 0);
+    const paymentsCompletedCount = paidInvoices.length + successfulPayments.length;
+    const averageMonthlySpend = paymentsCompletedCount > 0 ? Math.round(totalSpent / Math.max(1, paymentsCompletedCount)) : 0;
 
-    const currentSubscriptionCost = activeSub ? activeSub.amount : (customer?.mrr || 4999);
-    const currentPlanName = activeSub ? activeSub.planName : (customer?.subscriptionPlan || 'Pro Business');
-    const paymentsCompletedCount = paidInvoices.length > 0 ? paidInvoices.length : 12;
+    const discounts: DiscountRecord[] = [];
+    const totalSavings = 0;
 
-    const computedTotalSpent = totalSpent > 0 ? totalSpent : 38975;
-    const averageMonthlySpend = Math.round(computedTotalSpent / (paymentsCompletedCount || 1));
+    const currentSubscriptionCost = activeSub ? activeSub.amount : (customer?.mrr || 0);
+    const currentPlanName = activeSub ? activeSub.planName : (customer && customer.subscriptionPlan !== 'None' ? customer.subscriptionPlan : 'No active plan');
 
-    // Sort paid invoices to get latest payment date
-    const sortedPaid = [...paidInvoices].sort((a, b) => new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime());
-    const latestPaymentDate = sortedPaid.length > 0 ? sortedPaid[0].issueDate : '2026-07-05';
+    // Determine latest payment date
+    const allDates: string[] = [
+      ...paidInvoices.map((i) => i.issueDate),
+      ...successfulPayments.map((p) => p.date || p.paymentDate),
+    ].filter(Boolean);
+    const sortedDates = [...allDates].sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+    const latestPaymentDate = sortedDates.length > 0 ? sortedDates[0] : null;
 
     // Payment Summary stats
     const paymentSummary: PaymentSummaryStats = {
-      successfulCount: paidInvoices.length > 0 ? paidInvoices.length : 12,
-      successfulAmount: computedTotalSpent,
+      successfulCount: paymentsCompletedCount,
+      successfulAmount: totalSpent,
       pendingCount: pendingInvoices.length,
       pendingAmount: pendingInvoices.reduce((s, i) => s + i.amount, 0),
-      failedCount: overdueInvoices.length > 0 ? overdueInvoices.length : 1,
-      failedAmount: overdueInvoices.reduce((s, i) => s + i.amount, 0) || 1999,
+      failedCount: overdueInvoices.length + failedPayments.length,
+      failedAmount: overdueInvoices.reduce((s, i) => s + i.amount, 0) + failedPayments.reduce((s, p) => s + (p.amount || 0), 0),
       refundedCount: 0,
       refundedAmount: 0,
       latestPaymentDate,
@@ -125,95 +141,66 @@ export const billingApi = {
 
     // Monthly spending trend calculation (6 months)
     const monthNames = ['Mar 2026', 'Apr 2026', 'May 2026', 'Jun 2026', 'Jul 2026', 'Aug 2026'];
-    const defaultMonthlyAmounts = [4999, 4999, 4999, 4999, 4999, 4999];
-    const spendingTrend: MonthlyTrendPoint[] = monthNames.map((month, idx) => ({
+    const spendingTrend: MonthlyTrendPoint[] = monthNames.map((month) => ({
       month,
-      amount: defaultMonthlyAmounts[idx] || averageMonthlySpend,
+      amount: totalSpent > 0 ? averageMonthlySpend : 0,
     }));
 
+    // Derive Customer Since from exact registration date
+    const rawCreated = userCreatedAt || userRecord?.createdAt || userRecord?.registrationDate || customer?.registrationDate || customer?.joinedDate || new Date().toISOString();
+    const customerSinceDate = rawCreated.includes('T') ? rawCreated.split('T')[0] : rawCreated;
+
     return {
-      totalSpent: computedTotalSpent,
-      totalSavings: totalSavings || 6250,
+      totalSpent,
+      totalSavings,
       currentSubscriptionCost,
       currentPlanName,
       averageMonthlySpend,
       paymentsCompletedCount,
 
-      billingCycle: activeSub?.billingCycle || 'Monthly',
-      subscriptionStatus: activeSub?.status || 'Active',
-      renewalDate: activeSub?.nextBillingDate || '2026-08-15',
+      billingCycle: activeSub?.billingCycle || (hasActiveSubscriptionPlan(currentPlanName) ? 'Monthly' : 'N/A'),
+      subscriptionStatus: activeSub?.status || (hasActiveSubscriptionPlan(currentPlanName) ? 'Active' : 'Inactive'),
+      renewalDate: activeSub?.nextBillingDate || 'N/A',
       nextBillingAmount: currentSubscriptionCost,
 
       paymentSummary,
       discounts,
-      recentInvoices: customerInvoices.length > 0 ? customerInvoices : [
-        { id: 'inv-1002', invoiceNumber: 'INV-2026-002', customerName: customer?.name || 'Rohan Sharma', customerEmail: cleanEmail, amount: 4999, status: 'Paid', issueDate: '2026-07-05', dueDate: '2026-07-20', items: [] },
-        { id: 'inv-1001', invoiceNumber: 'INV-2026-001', customerName: customer?.name || 'Rohan Sharma', customerEmail: cleanEmail, amount: 4999, status: 'Paid', issueDate: '2026-06-05', dueDate: '2026-06-20', items: [] },
-        { id: 'inv-1000', invoiceNumber: 'INV-2026-000', customerName: customer?.name || 'Rohan Sharma', customerEmail: cleanEmail, amount: 4999, status: 'Paid', issueDate: '2026-05-05', dueDate: '2026-05-20', items: [] }
-      ],
+      recentInvoices: customerInvoices,
       spendingTrend,
 
-      customerSince: customer?.joinedDate || '2025-11-15',
-      membershipStatus: customer?.status || 'Active',
+      customerSince: customerSinceDate,
+      membershipStatus: activeSub?.status || customer?.status || (userRecord ? 'Verified' : 'Active'),
     };
   },
 
   /**
-   * TODO: API Method for downloading PDF Billing Statement
-   * Backend endpoint: GET /api/v1/customer/billing/statement?email={email}
+   * Generates and downloads the PDF Billing Statement directly in browser
    */
-  downloadBillingStatementPDF: async (email: string): Promise<void> => {
-    // TODO: Connect to FastAPI endpoint GET /api/v1/customer/billing/statement
-    console.log(`[TODO: Backend API] Triggering PDF billing statement download for ${email}`);
-    // Client-side fallback / window print
-    window.print();
+  downloadBillingStatementPDF: async (data: CustomerBillingSummary, user: User | null): Promise<void> => {
+    generateBillingStatementPdf(data, user);
   },
 
   /**
-   * TODO: API Method for downloading Payment History CSV
-   * Backend endpoint: GET /api/v1/customer/billing/payments/csv?email={email}
+   * Generates and downloads the PDF Payment History directly in browser
    */
-  downloadPaymentHistoryCSV: async (email: string, paymentsData: Array<Record<string, unknown>>): Promise<void> => {
-    // TODO: Connect to FastAPI endpoint GET /api/v1/customer/billing/payments/csv
-    console.log(`[TODO: Backend API] Triggering Payment History CSV export for ${email}`);
-    
-    // Client-side CSV download fallback
-    if (!paymentsData || paymentsData.length === 0) return;
-    const headers = Object.keys(paymentsData[0]);
-    const csvLines = [
-      headers.join(','),
-      ...paymentsData.map((row) =>
-        headers.map((h) => `"${String(row[h] ?? '').replace(/"/g, '""')}"`).join(',')
-      ),
-    ];
-    const blob = new Blob([csvLines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `payment_history_${email.split('@')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+  downloadPaymentHistoryPDF: async (payments: any[], user: User | null): Promise<void> => {
+    generatePaymentHistoryPdf(payments, user);
   },
 
   /**
-   * TODO: API Method for downloading Tax Invoice
-   * Backend endpoint: GET /api/v1/customer/billing/tax-invoice?email={email}
+   * Generates and downloads the PDF Tax Invoice directly in browser
    */
-  downloadTaxInvoice: async (email: string, invoiceNumber?: string): Promise<void> => {
-    // TODO: Connect to FastAPI endpoint GET /api/v1/customer/billing/tax-invoice
-    console.log(`[TODO: Backend API] Triggering Tax Invoice download for ${email}, invoice: ${invoiceNumber || 'latest'}`);
-    alert(`Downloading Tax Invoice ${invoiceNumber ? `#${invoiceNumber}` : ''} for ${email}...`);
+  downloadTaxInvoicePDF: async (data: CustomerBillingSummary, user: User | null): Promise<void> => {
+    generateTaxInvoicePdf(data, user);
   },
 
   /**
-   * TODO: API Method for downloading Receipts
-   * Backend endpoint: GET /api/v1/customer/billing/receipts?email={email}
+   * Generates and downloads the PDF Payment Receipt directly in browser
    */
-  downloadReceipts: async (email: string): Promise<void> => {
-    // TODO: Connect to FastAPI endpoint GET /api/v1/customer/billing/receipts
-    console.log(`[TODO: Backend API] Triggering Receipts archive download for ${email}`);
-    alert(`Downloading all payment receipts for ${email}...`);
+  downloadReceiptsPDF: async (
+    data: CustomerBillingSummary,
+    user: User | null
+  ): Promise<{ success: boolean; message?: string }> => {
+    return generatePaymentReceiptPdf(data, user);
   },
 };

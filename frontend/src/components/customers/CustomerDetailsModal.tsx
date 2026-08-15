@@ -69,8 +69,13 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
   const handleStatusToggle = async (newStatus: CustomerStatus) => {
     setIsActionLoading(true);
     try {
-      const updated = await customerApi.updateCustomerStatus(currentCust.id, newStatus);
-      setCurrentCust(updated);
+      if (newStatus === 'Suspended') {
+        await customerApi.suspendCustomer(currentCust.id, 'Status toggled from modal');
+      } else {
+        await customerApi.restoreCustomer(currentCust.id);
+      }
+      const refreshed = await customerApi.getCustomerById(currentCust.id);
+      if (refreshed) setCurrentCust(refreshed);
       onCustomerUpdated?.();
     } catch (err) {
       console.error(err);

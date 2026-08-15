@@ -2,6 +2,7 @@ import { User, UserRole, RegisterCustomerDTO, AuthSession } from '../types/auth'
 import { Customer } from '../types/customer';
 import { STORAGE_KEYS, getItem, setItem, removeItem } from '../utils/storage';
 import { authApi } from './api/authApi';
+import { ENABLED_OAUTH_PROVIDERS } from '../config/authConfig';
 
 /**
  * HARDCODED DEMO ADMIN CREDENTIALS FOR DASHBOARD PREVIEW
@@ -217,85 +218,96 @@ export const authService = {
    * Calls POST /api/auth/login
    */
   login: async (email: string, password: string, role: UserRole, fullName?: string): Promise<AuthSession> => {
-    await new Promise((resolve) => setTimeout(resolve, 300));
-
     const cleanEmail = email.trim().toLowerCase();
-    const cleanFullName = fullName?.trim();
 
-    // Admin login demo fallback check first
-    if (role === 'Admin' && cleanEmail === HARDCODED_ADMIN.email && password === HARDCODED_ADMIN.passwordHash) {
-      const { passwordHash, ...adminUser } = HARDCODED_ADMIN;
-      const session: AuthSession = {
-        user: adminUser,
-        token: `prod-jwt-token-admin-${Date.now()}`,
-      };
-      setItem(STORAGE_KEYS.AUTH, session);
-      return session;
-    }
+    const createSuspendedSession = (): AuthSession => {
+      const customers = getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
+      const cust = customers.find((c) => c.email.toLowerCase() === cleanEmail);
+      const users = getItem<StoredUser[]>(STORAGE_KEYS.USERS, []);
+      const storedUser = users.find((u) => u.email.toLowerCase() === cleanEmail);
 
-    // Call FastAPI Backend API
-    const apiResponse = await authApi.login({
-      fullName: role === 'Customer' ? cleanFullName : undefined,
-      email: cleanEmail,
-      password,
-    });
-
-    if (apiResponse.success && apiResponse.data?.token && apiResponse.data?.user) {
-      const session: AuthSession = {
-        user: apiResponse.data.user,
-        token: apiResponse.data.token,
-      };
-      setItem(STORAGE_KEYS.AUTH, session);
-      return session;
-    }
-
-    if (apiResponse.error || (apiResponse.success === false && apiResponse.message)) {
-      if (apiResponse.error?.includes('Invalid') || apiResponse.message?.includes('Invalid')) {
-        throw new Error(apiResponse.message || apiResponse.error || 'Invalid email or password.');
-      }
-    }
-
-    // Customer login check
-    const storedUsers = getItem<StoredUser[]>(STORAGE_KEYS.USERS, []);
-    const foundUser = storedUsers.find(
-      (u) => u.email.toLowerCase() === cleanEmail && u.role === 'Customer'
-    );
-
-    if (foundUser && foundUser.passwordHash === password) {
-      const { passwordHash, ...customerUser } = foundUser;
-      if (cleanFullName) customerUser.fullName = cleanFullName;
-      const session: AuthSession = {
-        user: customerUser,
-        token: `prod-jwt-token-customer-${Date.now()}`,
-      };
-      setItem(STORAGE_KEYS.AUTH, session);
-      return session;
-    }
-
-    // Generic customer fallback for demo preview
-    if (role === 'Customer' && cleanEmail && password) {
-      const displayFullName = cleanFullName || cleanEmail.split('@')[0].replace('.', ' ').toUpperCase();
-      const customerUser: User = {
-        id: `usr-cust-${Date.now()}`,
-        customerId: `CUS-2026-${Math.floor(100000 + Math.random() * 900000)}`,
-        fullName: displayFullName,
-        firstName: displayFullName.split(' ')[0],
-        lastName: displayFullName.split(' ').slice(1).join(' ') || 'User',
+      const suspendedUser: User = {
+        id: cust?.id || storedUser?.id || `usr-cust-${Date.now()}`,
+        customerId: cust?.customerId || storedUser?.customerId || 'CUS-2026-000001',
+        fullName: cust?.name || storedUser?.fullName || fullName || cleanEmail.split('@')[0],
+        firstName: cust?.firstName || storedUser?.firstName || cleanEmail.split('@')[0],
+        lastName: cust?.lastName || storedUser?.lastName || '',
         email: cleanEmail,
-        role: 'Customer',
-        createdAt: new Date().toISOString(),
-        status: 'Verified',
-        currentPlan: 'Starter',
+        phoneNumber: cust?.phone || storedUser?.phoneNumber || '',
+        country: cust?.country || storedUser?.country || 'India',
+        role: role || 'Customer',
+        createdAt: cust?.joinedDate || new Date().toISOString(),
+        status: 'Suspended',
+        accountStatus: 'SUSPENDED',
+        currentPlan: cust?.subscriptionPlan || storedUser?.currentPlan || 'Starter',
+        subscriptionStatus: cust?.subscriptionStatus || storedUser?.subscriptionStatus || 'Active',
+        themePreference: 'light',
       };
+
       const session: AuthSession = {
-        user: customerUser,
-        token: `prod-jwt-token-customer-${Date.now()}`,
+        user: suspendedUser,
+        token: `suspended-jwt-token-${Date.now()}`,
       };
+
+      if (cust) {
+        cust.accountStatus = 'SUSPENDED';
+        cust.status = 'Suspended';
+        setItem(STORAGE_KEYS.CUSTOMERS, customers);
+      }
       setItem(STORAGE_KEYS.AUTH, session);
       return session;
-    }
+    };
 
-    throw new Error('Invalid email or password.');
+    try {
+      const apiResponse = await authApi.login({
+        email: cleanEmail,
+        password,
+      });
+
+      if (apiResponse.success && apiResponse.data?.token && apiResponse.data?.user) {
+        const u = apiResponse.data.user;
+        const customers = getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
+        const cust = customers.find((c) => c.email.toLowerCase() === cleanEmail);
+        if (cust) {
+          u.accountStatus = cust.accountStatus || (cust.status === 'Suspended' ? 'SUSPENDED' : 'ACTIVE');
+          u.status = cust.status === 'Suspended' ? 'Suspended' : cust.status === 'Pending Verification' ? 'Pending Verification' : cust.status === 'Pending' ? 'Pending' : 'Verified';
+        }
+
+        const session: AuthSession = {
+          user: u,
+          token: apiResponse.data.token,
+        };
+        setItem(STORAGE_KEYS.AUTH, session);
+        return session;
+      }
+
+      const errorMsg = apiResponse.error || apiResponse.message || '';
+      if (errorMsg.includes('ACCOUNT_SUSPENDED') || errorMsg.toLowerCase().includes('suspended')) {
+        return createSuspendedSession();
+      }
+
+      // Check if user is marked suspended in local storage
+      const customers = getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
+      const cust = customers.find((c) => c.email.toLowerCase() === cleanEmail);
+      if (cust && (cust.accountStatus === 'SUSPENDED' || cust.status === 'Suspended')) {
+        return createSuspendedSession();
+      }
+
+      throw new Error(errorMsg || 'Login failed.');
+    } catch (err: any) {
+      const errorMsg = err.message || '';
+      if (errorMsg.includes('ACCOUNT_SUSPENDED') || errorMsg.toLowerCase().includes('suspended')) {
+        return createSuspendedSession();
+      }
+
+      const customers = getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
+      const cust = customers.find((c) => c.email.toLowerCase() === cleanEmail);
+      if (cust && (cust.accountStatus === 'SUSPENDED' || cust.status === 'Suspended')) {
+        return createSuspendedSession();
+      }
+
+      throw err;
+    }
   },
 
   getCurrentSession: (): AuthSession | null => {
@@ -303,7 +315,8 @@ export const authService = {
   },
 
   logout: (): void => {
-    authApi.logout().catch(() => {});
+    const session = getItem<AuthSession | null>(STORAGE_KEYS.AUTH, null);
+    authApi.logout(session?.token).catch(() => {});
     removeItem(STORAGE_KEYS.AUTH);
   },
 
@@ -327,6 +340,10 @@ export const authService = {
    * SOCIAL LOGIN & OAUTH 2.0 INTEGRATION
    */
   socialLogin: async (provider: 'Google' | 'Microsoft' | 'Apple'): Promise<AuthSession> => {
+    if (!ENABLED_OAUTH_PROVIDERS[provider]) {
+      throw new Error(`Authentication with ${provider} is coming soon.`);
+    }
+
     await new Promise((resolve) => setTimeout(resolve, 300));
 
     if (provider === 'Google') await authApi.googleLogin({});
@@ -408,7 +425,7 @@ export const authService = {
           firstName: newUser.firstName,
           lastName: newUser.lastName,
           email: cleanEmail,
-          phone: '+91 9876543210',
+          phone: '',
           status: 'Verified',
           subscriptionPlan: 'None',
           subscriptionStatus: 'Inactive',
@@ -452,6 +469,63 @@ export const authService = {
     if (idx !== -1 && users[idx].linkedProviders) {
       users[idx].linkedProviders = users[idx].linkedProviders!.filter((p) => p !== provider);
       setItem(STORAGE_KEYS.USERS, users);
+    }
+  },
+
+  isProfileIncomplete: (user: User | null): boolean => {
+    if (!user || user.role !== 'Customer') return false;
+    const phone = user.phoneNumber || (user as any).phone || '';
+    return !phone || !phone.trim();
+  },
+
+  checkProfileCompleteness: async (user: User) => {
+    if (!user || user.role !== 'Customer') return;
+
+    const phone = user.phoneNumber || (user as any).phone || '';
+    const missingFields: string[] = [];
+    if (!user.fullName || !user.fullName.trim()) missingFields.push('Full Name');
+    if (!user.email || !user.email.trim()) missingFields.push('Email Address');
+    if (!phone || !phone.trim()) missingFields.push('Mobile Number');
+
+    if (missingFields.length > 0) {
+      const existingNotifs = getItem<any[]>(STORAGE_KEYS.NOTIFICATIONS, []);
+      const alreadyHasNotif = existingNotifs.some(
+        (n) => (n.title === 'Complete Your Profile' || n.title === 'Profile Incomplete') && !n.isRead
+      );
+
+      if (!alreadyHasNotif) {
+        const notifItem = {
+          id: `notif-${Date.now()}`,
+          title: 'Complete Your Profile',
+          message: 'Your profile information is incomplete. Please update your details.',
+          timestamp: 'Just now',
+          isRead: false,
+          type: 'warning',
+          actionLabel: 'Complete Profile',
+          actionUrl: '/customer/profile',
+        };
+        existingNotifs.unshift(notifItem);
+        setItem(STORAGE_KEYS.NOTIFICATIONS, existingNotifs);
+      }
+
+      try {
+        await authApi.notifyProfileIncomplete({
+          email: user.email,
+          fullName: user.fullName,
+          missingFields,
+        });
+      } catch (e) {
+        // Safe fallback
+      }
+    } else {
+      // Profile is complete -> remove any profile incomplete notification
+      const existingNotifs = getItem<any[]>(STORAGE_KEYS.NOTIFICATIONS, []);
+      const filtered = existingNotifs.filter(
+        (n) => n.title !== 'Complete Your Profile' && n.title !== 'Profile Incomplete'
+      );
+      if (filtered.length !== existingNotifs.length) {
+        setItem(STORAGE_KEYS.NOTIFICATIONS, filtered);
+      }
     }
   },
 };

@@ -1,30 +1,57 @@
 import React, { useState } from 'react';
-import { User as UserIcon, Mail, Phone, MapPin, Save, ShieldCheck, Calendar, BookmarkCheck, Hash, Globe, Camera, Lock, CheckCircle2, Link2, Unlink } from 'lucide-react';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { User as UserIcon, Mail, Phone, MapPin, Save, ShieldCheck, Calendar, BookmarkCheck, Hash, Globe, Camera, Lock, CheckCircle2, Link2, Unlink, AlertTriangle } from 'lucide-react';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
+import { PhoneInput } from '../../components/common/PhoneInput';
 import { Badge } from '../../components/common/Badge';
 import { Toast } from '../../components/common/Toast';
+import { Modal } from '../../components/common/Modal';
 import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../contexts/ThemeContext';
 import { authService } from '../../services/authService';
+import { ENABLED_OAUTH_PROVIDERS } from '../../config/authConfig';
 
 export const ProfilePage: React.FC = () => {
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, logout } = useAuth();
   const { theme, setTheme } = useTheme();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
 
   const isAdmin = user?.role === 'Admin';
   const customerId = user?.customerId || (isAdmin ? 'ADM-2026-000001' : 'CUS-2026-000124');
+  const extractPhoneDetails = (rawPhone?: string) => {
+    if (!rawPhone || !rawPhone.trim()) return { code: '+91', number: '' };
+    const cleaned = rawPhone.trim();
+    const match = cleaned.match(/^(\+\d{1,3})[\s-]*(.*)$/);
+    if (match && match[2]) {
+      return { code: match[1], number: match[2].trim() };
+    }
+    if (cleaned.startsWith('+91') && cleaned.length >= 12) {
+      return { code: '+91', number: cleaned.slice(3).trim() };
+    }
+    return { code: '+91', number: cleaned };
+  };
+
+  const rawUserPhone = user?.phoneNumber || (user as any)?.phone || (user as any)?.phone_number || '';
+  const initialPhoneDetails = extractPhoneDetails(rawUserPhone);
+
   const registrationDate = user?.registrationDate || '28 July 2026';
   const currentPlan = user?.currentPlan || (isAdmin ? 'System Administrator' : 'Starter');
   const accountStatus = user?.status || 'Verified';
 
-  const [firstName, setFirstName] = useState(user?.firstName || user?.fullName.split(' ')[0] || '');
-  const [lastName, setLastName] = useState(user?.lastName || user?.fullName.split(' ').slice(1).join(' ') || '');
+  const isMobileRequiredNotice = searchParams.get('completeMobile') === 'true' || (!rawUserPhone.trim() && !isAdmin);
+  const noticeMsg = (location.state as any)?.message || 'Please enter your mobile number to complete your profile setup.';
+
+  const [firstName, setFirstName] = useState(user?.firstName || user?.fullName?.split(' ')[0] || '');
+  const [lastName, setLastName] = useState(user?.lastName || user?.fullName?.split(' ').slice(1).join(' ') || '');
   const [email] = useState(user?.email || '');
 
-  const [phone, setPhone] = useState(user?.phoneNumber || (isAdmin ? '+91 1800-BILLING-ADM' : '+91 9876543210'));
-  const [address, setAddress] = useState('123 Financial Tech Park, Bangalore, India');
+  const [phoneCode, setPhoneCode] = useState(initialPhoneDetails.code);
+  const [phone, setPhone] = useState(initialPhoneDetails.number || (isAdmin ? '1800-BILLING-ADM' : ''));
+  const [address, setAddress] = useState(user?.address || '');
   const [photoUrl, setPhotoUrl] = useState(user?.profilePicture || '');
   const [timezone, setTimezone] = useState('Asia/Kolkata');
   const [country, setCountry] = useState(user?.country || 'India');
@@ -34,15 +61,20 @@ export const ProfilePage: React.FC = () => {
 
   const [showToast, setShowToast] = useState(false);
   const [toastMsg, setToastMsg] = useState('Profile preferences updated successfully.');
+  const [isDisconnectModalOpen, setIsDisconnectModalOpen] = useState(false);
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     const fullName = `${firstName.trim()} ${lastName.trim()}`;
+    const formattedPhone = isAdmin ? user?.phoneNumber : (phone.trim() ? `${phoneCode} ${phone.trim()}` : '');
     updateUser({
       firstName,
       lastName,
       fullName,
-      phoneNumber: isAdmin ? user?.phoneNumber : phone,
+      phoneNumber: formattedPhone,
+      address,
+      profilePicture: photoUrl,
       country,
       themePreference: theme,
     });
@@ -56,6 +88,10 @@ export const ProfilePage: React.FC = () => {
     const isConnected = linkedProviders.includes(provider);
 
     if (isConnected) {
+      if (provider === 'Google') {
+        setIsDisconnectModalOpen(true);
+        return;
+      }
       await authService.unlinkProvider(user.email, provider);
       setLinkedProviders(linkedProviders.filter((p) => p !== provider));
       setToastMsg(`Disconnected ${provider} account.`);
@@ -66,6 +102,23 @@ export const ProfilePage: React.FC = () => {
     }
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3000);
+  };
+
+  const handleConfirmGoogleDisconnect = async () => {
+    if (!user) return;
+    setIsDisconnecting(true);
+    try {
+      await authService.unlinkProvider(user.email, 'Google');
+      logout();
+      navigate('/login', {
+        state: {
+          message: 'Google Authentication disconnected successfully. Please login again.',
+        },
+      });
+    } catch (err) {
+      setIsDisconnecting(false);
+      setIsDisconnectModalOpen(false);
+    }
   };
 
   return (
@@ -150,6 +203,16 @@ export const ProfilePage: React.FC = () => {
               {isAdmin ? 'Administrator Profile Information' : 'Personal & Contact Information'}
             </h3>
 
+            {isMobileRequiredNotice && (
+              <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs font-semibold flex items-start gap-3 shadow-xs">
+                <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold text-sm text-amber-900 dark:text-amber-100">Mobile Number Required</p>
+                  <p className="text-xs mt-0.5 leading-relaxed">{noticeMsg}</p>
+                </div>
+              </div>
+            )}
+
             <form onSubmit={handleSave} className="space-y-4">
               <Input
                 label={isAdmin ? 'Administrator ID' : 'Customer ID'}
@@ -204,12 +267,14 @@ export const ProfilePage: React.FC = () => {
                   />
                 </div>
               ) : (
-                <Input
-                  label="Phone Number"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  helperText="Editable contact phone number"
-                  leftIcon={<Phone className="w-4 h-4" />}
+                <PhoneInput
+                  countryCode={phoneCode}
+                  onCountryCodeChange={setPhoneCode}
+                  phone={phone}
+                  onPhoneChange={setPhone}
+                  label="Mobile Number"
+                  helperText="Mandatory contact mobile number for verification and security"
+                  required
                 />
               )}
 
@@ -276,6 +341,7 @@ export const ProfilePage: React.FC = () => {
             <div className="space-y-3">
               {(['Google', 'Microsoft', 'Apple'] as const).map((prov) => {
                 const isConnected = linkedProviders.includes(prov);
+                const isEnabled = ENABLED_OAUTH_PROVIDERS[prov];
                 return (
                   <div
                     key={prov}
@@ -293,6 +359,8 @@ export const ProfilePage: React.FC = () => {
                           <svg className="w-4 h-4" viewBox="0 0 23 23">
                             <path fill="#f35325" d="M1 1h10v10H1z" />
                             <path fill="#81bc06" d="M12 1h10v10H12z" />
+                            <path fill="#05a6f0" d="M1 12h10v10H1z" />
+                            <path fill="#ffba08" d="M12 12h10v10H12z" />
                           </svg>
                         )}
                         {prov === 'Apple' && (
@@ -304,18 +372,22 @@ export const ProfilePage: React.FC = () => {
                       <div>
                         <span className="text-xs font-bold text-heading block">{prov} Authentication</span>
                         <span className="text-[10px] text-secondaryText font-medium">
-                          {isConnected ? 'Connected & Verified' : 'Not Connected'}
+                          {isConnected ? 'Connected & Verified' : isEnabled ? 'Not Connected' : 'Coming Soon'}
                         </span>
                       </div>
                     </div>
 
                     <button
                       type="button"
-                      onClick={() => handleToggleProvider(prov)}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                        isConnected
-                          ? 'border border-rose-200 dark:border-rose-900 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950'
-                          : 'bg-primary text-white hover:bg-primary/90'
+                      disabled={!isEnabled && !isConnected}
+                      onClick={() => isEnabled && handleToggleProvider(prov)}
+                      title={!isEnabled ? `${prov} integration coming soon` : undefined}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                        !isEnabled && !isConnected
+                          ? 'bg-secondary text-mutedText cursor-not-allowed opacity-60'
+                          : isConnected
+                          ? 'border border-rose-200 dark:border-rose-900 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950 cursor-pointer'
+                          : 'bg-primary text-white hover:bg-primary/90 cursor-pointer'
                       }`}
                     >
                       {isConnected ? (
@@ -324,7 +396,7 @@ export const ProfilePage: React.FC = () => {
                         </>
                       ) : (
                         <>
-                          <Link2 className="w-3.5 h-3.5" /> Connect
+                          <Link2 className="w-3.5 h-3.5" /> {isEnabled ? 'Connect' : 'Coming Soon'}
                         </>
                       )}
                     </button>
@@ -342,6 +414,43 @@ export const ProfilePage: React.FC = () => {
         type="success"
         onClose={() => setShowToast(false)}
       />
+
+      <Modal
+        isOpen={isDisconnectModalOpen}
+        onClose={() => !isDisconnecting && setIsDisconnectModalOpen(false)}
+        title="Disconnect Google Authentication"
+        size="md"
+      >
+        <div className="space-y-4 p-4">
+          <div className="flex items-center gap-3 p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300">
+            <AlertTriangle className="w-5 h-5 shrink-0 text-amber-600 dark:text-amber-400" />
+            <p className="text-xs font-semibold leading-relaxed">
+              Disconnecting Google Authentication will remove your Google OAuth provider connection, clear your current session, log you out, and require you to log in again.
+            </p>
+          </div>
+          <p className="text-xs text-secondaryText font-medium">
+            Are you sure you want to disconnect Google Authentication?
+          </p>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsDisconnectModalOpen(false)}
+              disabled={isDisconnecting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              onClick={handleConfirmGoogleDisconnect}
+              isLoading={isDisconnecting}
+            >
+              Confirm Disconnect
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

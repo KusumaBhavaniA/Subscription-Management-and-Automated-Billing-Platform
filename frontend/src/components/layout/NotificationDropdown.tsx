@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, CheckCheck, Trash2, CheckCircle2, AlertTriangle, XCircle, Info } from 'lucide-react';
+import { Bell, CheckCheck, Trash2, CheckCircle2, AlertTriangle, XCircle, Info, ArrowRight } from 'lucide-react';
 import { useNotifications } from '../../hooks/useNotifications';
 import { NotificationItem } from '../../types/notification';
 
@@ -8,6 +9,7 @@ export const NotificationDropdown: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const { notifications, unreadCount, markAsRead, markAllAsRead, removeNotification } = useNotifications();
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -95,39 +97,66 @@ export const NotificationDropdown: React.FC = () => {
                   No notifications
                 </div>
               ) : (
-                notifications.map((item) => (
-                  <div
-                    key={item.id}
-                    onClick={() => markAsRead(item.id)}
-                    className={`p-3.5 flex items-start gap-3 transition-colors cursor-pointer ${
-                      !item.isRead
-                        ? 'bg-blue-50 dark:bg-[#1E293B] hover:bg-blue-100 dark:hover:bg-[#334155]'
-                        : 'bg-white dark:bg-[#0F172A] hover:bg-slate-50 dark:hover:bg-[#1E293B]'
-                    }`}
-                  >
-                    <div className="mt-0.5">{getIcon(item.type)}</div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-xs font-bold text-[#0F172A] dark:text-[#F8FAFC] truncate">
-                          {item.title}
-                        </p>
-                        <span className="text-[10px] text-[#64748B] dark:text-[#94A3B8] shrink-0">{item.timestamp}</span>
-                      </div>
-                      <p className="text-xs text-[#64748B] dark:text-[#94A3B8] mt-0.5 line-clamp-2">
-                        {item.message}
-                      </p>
-                    </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeNotification(item.id);
+                notifications.map((item) => {
+                  const targetUrl = item.actionUrl === '/profile'
+                    ? '/customer/profile'
+                    : (item.actionUrl || (item.title === 'Complete Your Profile' || item.title === 'Profile Incomplete' ? '/customer/profile' : null));
+
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => {
+                        markAsRead(item.id);
+                        if (targetUrl) {
+                          setIsOpen(false);
+                          navigate(targetUrl);
+                        }
                       }}
-                      className="text-[#64748B] dark:text-[#94A3B8] hover:text-rose-600 dark:hover:text-rose-400 p-1 transition-colors cursor-pointer"
+                      className={`p-3.5 flex items-start gap-3 transition-colors cursor-pointer ${
+                        !item.isRead
+                          ? 'bg-blue-50 dark:bg-[#1E293B] hover:bg-blue-100 dark:hover:bg-[#334155]'
+                          : 'bg-white dark:bg-[#0F172A] hover:bg-slate-50 dark:hover:bg-[#1E293B]'
+                      }`}
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))
+                      <div className="mt-0.5">{getIcon(item.type)}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs font-bold text-[#0F172A] dark:text-[#F8FAFC] truncate">
+                            {item.title}
+                          </p>
+                          <span className="text-[10px] text-[#64748B] dark:text-[#94A3B8] shrink-0">{item.timestamp}</span>
+                        </div>
+                        <p className="text-xs text-[#64748B] dark:text-[#94A3B8] mt-0.5 line-clamp-2">
+                          {item.message}
+                        </p>
+                        {(item.actionLabel || item.title === 'Complete Your Profile' || item.title === 'Profile Incomplete') && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              markAsRead(item.id);
+                              setIsOpen(false);
+                              navigate(targetUrl || '/customer/profile');
+                            }}
+                            className="mt-2 inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg bg-primary text-white hover:bg-primary/90 transition-colors shadow-sm cursor-pointer"
+                          >
+                            {item.actionLabel || 'Complete Profile'}
+                            <ArrowRight className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeNotification(item.id);
+                        }}
+                        className="text-[#64748B] dark:text-[#94A3B8] hover:text-rose-600 dark:hover:text-rose-400 p-1 transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  );
+                })
               )}
             </div>
           </motion.div>

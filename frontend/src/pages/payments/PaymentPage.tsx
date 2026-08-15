@@ -27,12 +27,17 @@ import { planApi } from '../../services/api/planApi';
 import { paymentApi, CouponResult, PaymentOrderRequest } from '../../services/api/paymentApi';
 import { Plan } from '../../types/plan';
 
+import { SuspendedActionModal } from '../../components/common/SuspendedActionModal';
+
 type PaymentMethodType = 'upi' | 'credit-card' | 'debit-card' | 'net-banking' | 'wallet';
 
 export const PaymentPage: React.FC = () => {
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+
+  const isSuspended = user?.accountStatus === 'SUSPENDED' || user?.status === 'Suspended';
+  const [isSuspendedModalOpen, setIsSuspendedModalOpen] = useState(false);
 
   // State from router or fallback default plan
   const locationState = location.state as { plan?: Plan; billingCycle?: 'Monthly' | 'Quarterly' | 'Yearly' } | null;
@@ -187,6 +192,10 @@ export const PaymentPage: React.FC = () => {
   // Handle Submit / Pay Now
   const handlePayNow = async () => {
     if (!selectedPlan) return;
+    if (isSuspended) {
+      setIsSuspendedModalOpen(true);
+      return;
+    }
 
     setIsProcessing(true);
     setProcessingStage('Processing Payment...');
@@ -854,6 +863,11 @@ export const PaymentPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      <SuspendedActionModal
+        isOpen={isSuspendedModalOpen}
+        onClose={() => setIsSuspendedModalOpen(false)}
+      />
     </div>
   );
 };

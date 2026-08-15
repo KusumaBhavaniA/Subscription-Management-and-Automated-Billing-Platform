@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, Mail, Phone, Lock, ArrowLeft, ArrowRight, AlertCircle, CheckSquare, Square } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import { validateIndianMobile, checkPasswordStrength } from '../../utils/validators';
+import { validateMobileNumber, checkPasswordStrength } from '../../utils/validators';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { BPLogo } from '../../components/common/BPLogo';
@@ -38,7 +38,7 @@ export const RegisterPage: React.FC = () => {
     setError(null);
 
     if (!firstName.trim() || !lastName.trim() || !email.trim() || !phone.trim() || !password || !confirmPassword) {
-      setError('Please complete all required fields.');
+      setError('Please complete all required fields including Mobile Number.');
       return;
     }
 
@@ -47,8 +47,8 @@ export const RegisterPage: React.FC = () => {
       return;
     }
 
-    if (phone.length !== 10) {
-      setError('Please enter a valid 10-digit mobile number.');
+    if (!validateMobileNumber(phone, phoneCode)) {
+      setError('Please enter a valid mobile number.');
       return;
     }
 
