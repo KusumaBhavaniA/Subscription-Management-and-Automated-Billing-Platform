@@ -4,7 +4,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.auth.routes import router as auth_router
 from app.auth.oauth import router as oauth_router
 from app.database import engine, Base
+from app.routers.payment import router as payment_router
+
 import app.models
+import app.payment_models
 
 from sqlalchemy import inspect, text
 
@@ -19,11 +22,11 @@ def ensure_db_schema():
                 if "account_status" not in columns:
                     conn.execute(text("ALTER TABLE users ADD COLUMN account_status VARCHAR DEFAULT 'ACTIVE' NOT NULL"))
                 if "deleted_at" not in columns:
-                    conn.execute(text("ALTER TABLE users ADD COLUMN deleted_at DATETIME"))
+                    conn.execute(text("ALTER TABLE users ADD COLUMN deleted_at TIMESTAMP"))
                 if "deleted_by" not in columns:
                     conn.execute(text("ALTER TABLE users ADD COLUMN deleted_by VARCHAR"))
                 if "suspended_at" not in columns:
-                    conn.execute(text("ALTER TABLE users ADD COLUMN suspended_at DATETIME"))
+                    conn.execute(text("ALTER TABLE users ADD COLUMN suspended_at TIMESTAMP"))
                 if "suspended_by" not in columns:
                     conn.execute(text("ALTER TABLE users ADD COLUMN suspended_by VARCHAR"))
                 if "suspension_reason" not in columns:
@@ -65,7 +68,7 @@ logger = logging.getLogger(__name__)
 
 app.include_router(auth_router)
 app.include_router(oauth_router)
-
+app.include_router(payment_router)
 
 @app.on_event("startup")
 def startup_smtp_diagnostics():

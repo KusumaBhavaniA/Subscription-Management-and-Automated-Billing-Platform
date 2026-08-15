@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -32,6 +33,11 @@ class Settings(BaseSettings):
     # Backend base URL — used to build OAuth callback URLs
     BACKEND_URL: str = "http://localhost:8000"
     ENVIRONMENT: str = "development"
+
+    # Mock payment gateway
+    PAYMENT_SUCCESS_RATE: float = Field(default=0.80, ge=0.0, le=1.0)
+    PAYMENT_WEBHOOK_URL: str = "http://localhost:8000/webhooks/payment"
+    PAYMENT_WEBHOOK_TIMEOUT_SECONDS: float = 5.0
 
     # OTP expiry in minutes
     OTP_EXPIRE_MINUTES: int = 10
