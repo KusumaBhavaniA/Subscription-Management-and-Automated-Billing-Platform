@@ -25,6 +25,7 @@ import { CustomersPage } from './pages/customers/CustomersPage';
 import { CustomerDetailsPage } from './pages/customers/CustomerDetailsPage';
 import { PlansPage } from './pages/plans/PlansPage';
 import { CustomerPlansPage } from './pages/plans/CustomerPlansPage';
+import { BillingLiveDemoPage } from './pages/plans/BillingLiveDemoPage';
 import { SubscriptionsPage } from './pages/subscriptions/SubscriptionsPage';
 import { InvoicesPage } from './pages/invoices/InvoicesPage';
 import { PaymentsPage } from './pages/payments/PaymentsPage';
@@ -100,6 +101,7 @@ export const AppContent: React.FC = () => {
             <Route path="/customer" element={<MainLayout />}>
               <Route path="dashboard" element={<CustomerDashboard />} />
               <Route path="plans" element={<CustomerPlansPage />} />
+              <Route path="billing-live-demo" element={<BillingLiveDemoPage />} />
               <Route path="subscriptions" element={<SubscriptionsPage />} />
               <Route path="invoices" element={<InvoicesPage />} />
               <Route path="payments" element={<PaymentsPage />} />

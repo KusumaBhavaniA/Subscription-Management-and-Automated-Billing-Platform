@@ -7,6 +7,7 @@ from sqlalchemy import create_engine
 from alembic import context
 from app.database import Base
 from app import models
+from app.billing import models as billing_models  # noqa: F401 — registers billing tables
 from app.config import settings
 
 # this is the Alembic Config object, which provides

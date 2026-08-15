@@ -1,4 +1,5 @@
 import { RegisterCustomerDTO, OTPVerificationDTO, AuthSession, SocialProvider, User } from '../../types/auth';
+import { apiFetch, apiUrl } from './client';
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -9,7 +10,7 @@ export interface ApiResponse<T = any> {
 
 const request = async <T>(path: string, options: RequestInit = {}): Promise<ApiResponse<T>> => {
   try {
-    const response = await fetch(path, {
+    const response = await apiFetch(path, {
       ...options,
       headers: { 'Content-Type': 'application/json', ...options.headers },
     });
@@ -37,11 +38,11 @@ export const authApi = {
   getOAuthLoginUrl: (provider: SocialProvider): string => {
     switch (provider) {
       case 'Google':
-        return '/auth/google/login';
+        return apiUrl('/auth/google/login');
       case 'Microsoft':
-        return '/auth/microsoft/login';
+        return apiUrl('/auth/microsoft/login');
       case 'Apple':
-        return '/auth/apple/login';
+        return apiUrl('/auth/apple/login');
     }
   },
 
@@ -82,7 +83,7 @@ export const authApi = {
    */
   googleLogin: async (payload: { token?: string }): Promise<ApiResponse<{ provider: 'Google' }>> => {
     try {
-      const response = await fetch('/auth/google', {
+      const response = await apiFetch('/auth/google', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -103,7 +104,7 @@ export const authApi = {
    */
   microsoftLogin: async (payload: { token?: string }): Promise<ApiResponse<{ provider: 'Microsoft' }>> => {
     try {
-      const response = await fetch('/auth/microsoft', {
+      const response = await apiFetch('/auth/microsoft', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -124,7 +125,7 @@ export const authApi = {
    */
   appleLogin: async (payload: { token?: string }): Promise<ApiResponse<{ provider: 'Apple' }>> => {
     try {
-      const response = await fetch('/auth/apple', {
+      const response = await apiFetch('/auth/apple', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -145,7 +146,7 @@ export const authApi = {
    */
   linkProvider: async (payload: { email: string; provider: SocialProvider }): Promise<ApiResponse<{ linked: boolean }>> => {
     try {
-      const response = await fetch('/auth/link-provider', {
+      const response = await apiFetch('/auth/link-provider', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -166,7 +167,7 @@ export const authApi = {
    */
   unlinkProvider: async (payload: { email: string; provider: SocialProvider }): Promise<ApiResponse<{ unlinked: boolean }>> => {
     try {
-      const response = await fetch('/auth/unlink-provider', {
+      const response = await apiFetch('/auth/unlink-provider', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
