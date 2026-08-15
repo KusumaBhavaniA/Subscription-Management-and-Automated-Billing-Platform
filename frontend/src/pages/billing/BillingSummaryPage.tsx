@@ -24,14 +24,27 @@ import {
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
+import { Toast } from '../../components/common/Toast';
 import { useAuth } from '../../hooks/useAuth';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { billingApi, CustomerBillingSummary } from '../../services/api/billingApi';
+import { paymentApi } from '../../services/api/paymentApi';
 
 export const BillingSummaryPage: React.FC = () => {
   const { user } = useAuth();
   const [data, setData] = useState<CustomerBillingSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [generatingType, setGeneratingType] = useState<string | null>(null);
+  const [toast, setToast] = useState<{
+    isVisible: boolean;
+    message: string;
+    type: 'success' | 'error' | 'info';
+  }>({
+    isVisible: false,
+    message: '',
+    type: 'success',
+  });
 
   useEffect(() => {
     const fetchBillingSummary = async () => {
@@ -61,35 +74,97 @@ export const BillingSummaryPage: React.FC = () => {
     return Math.max(...data.spendingTrend.map((t) => t.amount), 5000);
   }, [data]);
 
-  const handleDownloadStatement = () => {
-    if (user?.email) {
-      billingApi.downloadBillingStatementPDF(user.email);
+  const handlePrintStatement = () => {
+    window.print();
+  };
+
+  const handleExportPdf = async () => {
+    if (!data) return;
+    setIsGeneratingPdf(true);
+    setGeneratingType('top');
+    try {
+      await billingApi.downloadBillingStatementPDF(data, user);
+      setToast({ isVisible: true, message: 'PDF downloaded successfully.', type: 'success' });
+    } catch (err) {
+      console.error(err);
+      setToast({ isVisible: true, message: 'Unable to generate PDF. Please try again.', type: 'error' });
+    } finally {
+      setIsGeneratingPdf(false);
+      setGeneratingType(null);
     }
   };
 
-  const handleDownloadCSV = () => {
-    if (user?.email && data) {
-      const csvData = data.recentInvoices.map((inv) => ({
-        'Invoice Number': inv.invoiceNumber,
-        'Payment Date': inv.issueDate,
-        Amount: formatCurrency(inv.amount),
-        'Payment Method': 'Stripe Credit Card',
-        Status: inv.status,
-      }));
-      billingApi.downloadPaymentHistoryCSV(user.email, csvData);
+  const handleDownloadStatementPdf = async () => {
+    if (!data) return;
+    setIsGeneratingPdf(true);
+    setGeneratingType('statement');
+    try {
+      await billingApi.downloadBillingStatementPDF(data, user);
+      setToast({ isVisible: true, message: 'PDF downloaded successfully.', type: 'success' });
+    } catch (err) {
+      console.error(err);
+      setToast({ isVisible: true, message: 'Unable to generate PDF. Please try again.', type: 'error' });
+    } finally {
+      setIsGeneratingPdf(false);
+      setGeneratingType(null);
     }
   };
 
-  const handleDownloadTaxInvoice = () => {
-    if (user?.email) {
-      const latestInvoiceNum = data?.recentInvoices[0]?.invoiceNumber || 'INV-2026-002';
-      billingApi.downloadTaxInvoice(user.email, latestInvoiceNum);
+  const handleDownloadPaymentHistoryPdf = async () => {
+    if (!data || !user?.email) return;
+    setIsGeneratingPdf(true);
+    setGeneratingType('history');
+    try {
+      const customerPayments = await paymentApi.getPaymentTransactions(user.email, user.role);
+      const paymentsToExport = customerPayments.length > 0 ? customerPayments : data.recentInvoices;
+      await billingApi.downloadPaymentHistoryPDF(paymentsToExport, user);
+      setToast({ isVisible: true, message: 'PDF downloaded successfully.', type: 'success' });
+    } catch (err) {
+      console.error(err);
+      setToast({ isVisible: true, message: 'Unable to generate PDF. Please try again.', type: 'error' });
+    } finally {
+      setIsGeneratingPdf(false);
+      setGeneratingType(null);
     }
   };
 
-  const handleDownloadReceipts = () => {
-    if (user?.email) {
-      billingApi.downloadReceipts(user.email);
+  const handleDownloadTaxInvoicePdf = async () => {
+    if (!data) return;
+    setIsGeneratingPdf(true);
+    setGeneratingType('invoice');
+    try {
+      await billingApi.downloadTaxInvoicePDF(data, user);
+      setToast({ isVisible: true, message: 'PDF downloaded successfully.', type: 'success' });
+    } catch (err) {
+      console.error(err);
+      setToast({ isVisible: true, message: 'Unable to generate PDF. Please try again.', type: 'error' });
+    } finally {
+      setIsGeneratingPdf(false);
+      setGeneratingType(null);
+    }
+  };
+
+  const handleDownloadReceiptsPdf = async () => {
+    if (!data) return;
+    setIsGeneratingPdf(true);
+    setGeneratingType('receipt');
+    try {
+      const result = await billingApi.downloadReceiptsPDF(data, user);
+      if (result.success) {
+        setToast({ isVisible: true, message: 'PDF downloaded successfully.', type: 'success' });
+      } else {
+        setToast({
+          isVisible: true,
+          message: result.message || 'No payment receipts are available because no completed payments exist.',
+          type: 'info',
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      setToast({ isVisible: true, message: 'Unable to generate PDF. Please try again.', type: 'error' });
+    } finally {
+      setIsGeneratingPdf(false);
+      setGeneratingType(null);
     }
   };
 
@@ -128,7 +203,7 @@ export const BillingSummaryPage: React.FC = () => {
             variant="outline"
             size="sm"
             leftIcon={<Printer className="w-4 h-4" />}
-            onClick={handleDownloadStatement}
+            onClick={handlePrintStatement}
           >
             Print Statement
           </Button>
@@ -136,9 +211,10 @@ export const BillingSummaryPage: React.FC = () => {
             variant="primary"
             size="sm"
             leftIcon={<Download className="w-4 h-4" />}
-            onClick={handleDownloadCSV}
+            onClick={handleExportPdf}
+            disabled={isGeneratingPdf}
           >
-            Export Payment CSV
+            {generatingType === 'top' ? 'Generating PDF...' : 'Export PDF'}
           </Button>
         </div>
       </div>
@@ -528,49 +604,61 @@ export const BillingSummaryPage: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Button
             variant="outline"
-            className="w-full justify-start py-3"
+            className="w-full justify-start py-3 cursor-pointer hover:border-primary transition-colors"
             leftIcon={<FileText className="w-4 h-4 text-primary" />}
-            onClick={handleDownloadStatement}
+            onClick={handleDownloadStatementPdf}
+            disabled={isGeneratingPdf}
           >
             <div className="text-left">
-              <span className="block font-bold text-xs">Billing Statement (PDF)</span>
+              <span className="block font-bold text-xs">
+                {generatingType === 'statement' ? 'Generating...' : 'Billing Statement (PDF)'}
+              </span>
               <span className="block text-[10px] text-mutedText font-normal">Official monthly PDF audit</span>
             </div>
           </Button>
 
           <Button
             variant="outline"
-            className="w-full justify-start py-3"
+            className="w-full justify-start py-3 cursor-pointer hover:border-emerald-500 transition-colors"
             leftIcon={<FileSpreadsheet className="w-4 h-4 text-emerald-500" />}
-            onClick={handleDownloadCSV}
+            onClick={handleDownloadPaymentHistoryPdf}
+            disabled={isGeneratingPdf}
           >
             <div className="text-left">
-              <span className="block font-bold text-xs">Payment History (CSV)</span>
-              <span className="block text-[10px] text-mutedText font-normal">Export full transaction log</span>
+              <span className="block font-bold text-xs">
+                {generatingType === 'history' ? 'Generating...' : 'Payment History (PDF)'}
+              </span>
+              <span className="block text-[10px] text-mutedText font-normal">Download complete payment history</span>
             </div>
           </Button>
 
           <Button
             variant="outline"
-            className="w-full justify-start py-3"
+            className="w-full justify-start py-3 cursor-pointer hover:border-blue-500 transition-colors"
             leftIcon={<Receipt className="w-4 h-4 text-blue-500" />}
-            onClick={handleDownloadTaxInvoice}
+            onClick={handleDownloadTaxInvoicePdf}
+            disabled={isGeneratingPdf}
           >
             <div className="text-left">
-              <span className="block font-bold text-xs">Tax Invoice</span>
-              <span className="block text-[10px] text-mutedText font-normal">GST / VAT Tax compliance</span>
+              <span className="block font-bold text-xs">
+                {generatingType === 'invoice' ? 'Generating...' : 'Tax Invoice (PDF)'}
+              </span>
+              <span className="block text-[10px] text-mutedText font-normal">Download official tax invoice</span>
             </div>
           </Button>
 
           <Button
             variant="outline"
-            className="w-full justify-start py-3"
+            className="w-full justify-start py-3 cursor-pointer hover:border-amber-500 transition-colors"
             leftIcon={<Award className="w-4 h-4 text-amber-500" />}
-            onClick={handleDownloadReceipts}
+            onClick={handleDownloadReceiptsPdf}
+            disabled={isGeneratingPdf}
           >
             <div className="text-left">
-              <span className="block font-bold text-xs">Payment Receipts</span>
-              <span className="block text-[10px] text-mutedText font-normal">Archive of all receipts</span>
+              <span className="block font-bold text-xs">
+                {generatingType === 'receipt' ? 'Generating...' : 'Payment Receipts (PDF)'}
+              </span>
+              <span className="block text-[10px] text-mutedText font-normal">Download payment receipts</span>
             </div>
           </Button>
         </div>
@@ -621,6 +709,13 @@ export const BillingSummaryPage: React.FC = () => {
           </div>
         </div>
       </Card>
+
+      <Toast
+        isVisible={toast.isVisible}
+        message={toast.message}
+        type={toast.type}
+        onClose={() => setToast((prev) => ({ ...prev, isVisible: false }))}
+      />
     </div>
   );
 };

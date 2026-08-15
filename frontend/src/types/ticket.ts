@@ -2,6 +2,7 @@ export type TicketCategory =
   | 'Billing & Payments'
   | 'Subscription'
   | 'Account'
+  | 'Account Suspension'
   | 'Technical'
   | 'General';
 
@@ -55,6 +56,10 @@ export const SUPPORT_CATEGORIES: Record<TicketCategory, string[]> = {
     'Password Reset',
     'Profile Update',
     'Account Suspended',
+  ],
+  'Account Suspension': [
+    'Request to Restore Suspended Account',
+    'Suspension Appeal',
   ],
   Technical: [
     'Dashboard Issue',

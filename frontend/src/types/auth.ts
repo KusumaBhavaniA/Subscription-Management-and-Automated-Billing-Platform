@@ -15,6 +15,7 @@ export interface User {
   role: UserRole;
   createdAt: string;
   status?: 'Verified' | 'Pending Verification' | 'Pending' | 'Suspended';
+  accountStatus?: 'ACTIVE' | 'SUSPENDED' | 'DELETED';
   registrationDate?: string;
   currentPlan?: string;
   subscriptionStatus?: string;

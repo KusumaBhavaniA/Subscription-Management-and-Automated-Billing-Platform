@@ -29,11 +29,16 @@ import { planApi } from '../../services/api/planApi';
 import { subscriptionManagementApi } from '../../services/api/subscriptionManagementApi';
 import { useAuth } from '../../hooks/useAuth';
 
+import { SuspendedActionModal } from '../../components/common/SuspendedActionModal';
+
 type SortOption = 'popular' | 'price-asc' | 'price-desc';
 
 export const CustomerPlansPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+
+  const isSuspended = user?.accountStatus === 'SUSPENDED' || user?.status === 'Suspended';
+  const [isSuspendedModalOpen, setIsSuspendedModalOpen] = useState(false);
 
   const [plans, setPlans] = useState<Plan[]>([]);
   const [activeSub, setActiveSub] = useState<Subscription | null>(null);
@@ -102,6 +107,10 @@ export const CustomerPlansPage: React.FC = () => {
   };
 
   const getActionButtonText = (targetPlan: Plan, currentCycle: 'Monthly' | 'Quarterly' | 'Yearly') => {
+    if (isSuspended) {
+      return { text: 'Subscription Actions Unavailable', variant: 'outline' as const, disabled: false, isCurrent: false };
+    }
+
     if (!activeSub || activeSub.planName === 'None' || !activeSub.status) {
       return { text: 'Subscribe', variant: 'primary' as const, disabled: false, isCurrent: false };
     }
@@ -137,6 +146,10 @@ export const CustomerPlansPage: React.FC = () => {
   };
 
   const handleOpenCheckout = (plan: Plan) => {
+    if (isSuspended) {
+      setIsSuspendedModalOpen(true);
+      return;
+    }
     setSelectedPlanForCheckout(plan);
     setCheckoutCycle(billingCycle);
     setIsCheckoutModalOpen(true);
@@ -207,6 +220,26 @@ export const CustomerPlansPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* SUSPENSION WARNING BANNER */}
+      {isSuspended && (
+        <div className="p-4 rounded-2xl bg-amber-500/10 dark:bg-amber-950/40 border border-amber-500/30 text-amber-900 dark:text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span className="text-xs font-semibold">
+              Subscription actions are unavailable while your account is suspended. Your account is currently suspended. Subscription purchases and payments are disabled. Please contact Support to request restoration.
+            </span>
+          </div>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => navigate('/customer/support')}
+            className="bg-amber-600 hover:bg-amber-700 text-white border-none shrink-0"
+          >
+            Contact Support
+          </Button>
+        </div>
+      )}
 
       {/* Search, Filter & Sort Controls Bar */}
       <Card className="p-4 flex flex-col md:flex-row items-center justify-between gap-4">
@@ -485,6 +518,11 @@ export const CustomerPlansPage: React.FC = () => {
           </div>
         </Modal>
       )}
+
+      <SuspendedActionModal
+        isOpen={isSuspendedModalOpen}
+        onClose={() => setIsSuspendedModalOpen(false)}
+      />
     </div>
   );
 };

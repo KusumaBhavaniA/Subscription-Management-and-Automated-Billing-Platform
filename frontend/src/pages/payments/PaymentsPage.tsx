@@ -6,8 +6,13 @@ import { useAuth } from '../../hooks/useAuth';
 import { paymentApi } from '../../services/api/paymentApi';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 
+import { useNavigate } from 'react-router-dom';
+import { Button } from '../../components/common/Button';
+
 export const PaymentsPage: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const isSuspended = user?.role === 'Customer' && (user?.accountStatus === 'SUSPENDED' || user?.status === 'Suspended');
   const [transactions, setTransactions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -43,6 +48,26 @@ export const PaymentsPage: React.FC = () => {
           Detailed payment processor logs, gateway transactions, and receipts.
         </p>
       </div>
+
+      {/* SUSPENSION WARNING BANNER */}
+      {isSuspended && (
+        <div className="p-4 rounded-2xl bg-amber-500/10 dark:bg-amber-950/40 border border-amber-500/30 text-amber-900 dark:text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span className="text-xs font-semibold">
+              Your account is currently suspended. Subscription purchases and payments are disabled. Please contact Support to request restoration.
+            </span>
+          </div>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => navigate('/customer/support')}
+            className="bg-amber-600 hover:bg-amber-700 text-white border-none shrink-0 cursor-pointer"
+          >
+            Contact Support
+          </Button>
+        </div>
+      )}
 
       <Card space-y-4>
         {isLoading ? (

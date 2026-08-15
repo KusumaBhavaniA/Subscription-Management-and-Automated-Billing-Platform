@@ -24,6 +24,7 @@ from app.auth.email import (
     send_welcome_email,
     send_password_reset_email,
     send_profile_incomplete_email,
+    send_suspension_email,
 )
 from app.config import settings
 from app.auth.rate_limit import (
@@ -637,12 +638,16 @@ def admin_suspend_customer(
     db.commit()
     db.refresh(customer)
 
-    background_tasks.add_task(
-        send_suspension_email,
-        customer.email,
-        customer.first_name,
-        payload.reason,
-    )
+    customer_name = f"{customer.first_name} {customer.last_name}".strip() if customer.last_name else customer.first_name
+    try:
+        background_tasks.add_task(
+            send_suspension_email,
+            customer.email,
+            customer_name,
+            payload.reason or "",
+        )
+    except Exception as exc:
+        logger.error("Failed to schedule suspension email for %s: %s", customer.email, exc)
 
     return {
         "success": True,

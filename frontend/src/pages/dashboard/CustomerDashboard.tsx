@@ -74,7 +74,8 @@ export const CustomerDashboard: React.FC = () => {
   }, [user]);
 
   const firstName = user?.firstName || user?.fullName?.split(' ')[0] || 'Customer';
-  const accountStatus = user?.status || 'Verified';
+  const isSuspended = user?.accountStatus === 'SUSPENDED' || user?.status === 'Suspended';
+  const accountStatus = isSuspended ? 'SUSPENDED' : (user?.status || 'Verified');
   const isProfileIncomplete = authService.isProfileIncomplete(user);
 
   const getSubStatusBadge = (st?: SubscriptionStatus) => {
@@ -122,6 +123,40 @@ export const CustomerDashboard: React.FC = () => {
           </Button>
         </div>
 
+        {/* PROMINENT SUSPENSION WARNING CARD */}
+        {isSuspended && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-2xl p-5 bg-amber-500/10 dark:bg-amber-950/40 border border-amber-500/30 text-amber-900 dark:text-amber-200 shadow-md space-y-3"
+          >
+            <div className="flex items-start gap-3.5">
+              <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 shrink-0">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-extrabold text-heading">
+                  Your Account Has Been Suspended
+                </h3>
+                <p className="text-xs text-secondaryText leading-relaxed font-medium">
+                  Your account has been temporarily suspended by an administrator. You can still access your account, but subscription purchases and payments are currently disabled.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end pt-1">
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => navigate('/customer/support')}
+                rightIcon={<ArrowRight className="w-4 h-4" />}
+                className="bg-amber-600 hover:bg-amber-700 text-white border-none shadow-sm cursor-pointer"
+              >
+                Request Account Restoration →
+              </Button>
+            </div>
+          </motion.div>
+        )}
+
         {/* 4 SUMMARY CARDS */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Current Plan */}
@@ -141,14 +176,20 @@ export const CustomerDashboard: React.FC = () => {
 
           {/* Account Status */}
           <div className="p-4 rounded-2xl bg-card border border-border text-primaryText shadow-xs flex items-center gap-3.5">
-            <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0">
+            <div className={`p-2.5 rounded-xl border shrink-0 ${
+              isSuspended
+                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+            }`}>
               <ShieldCheck className="w-5 h-5" />
             </div>
             <div className="min-w-0 flex-1">
               <span className="text-[10px] uppercase font-bold tracking-wider text-mutedText block truncate">
                 Account Status
               </span>
-              <p className="font-extrabold text-sm text-emerald-600 dark:text-emerald-400 truncate mt-0.5">
+              <p className={`font-extrabold text-sm truncate mt-0.5 ${
+                isSuspended ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'
+              }`}>
                 {accountStatus}
               </p>
             </div>

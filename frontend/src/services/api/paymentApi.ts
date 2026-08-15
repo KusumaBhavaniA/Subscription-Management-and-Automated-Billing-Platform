@@ -1,6 +1,7 @@
 import { STORAGE_KEYS, getItem, setItem } from '../../utils/storage';
 import { subscriptionManagementApi } from './subscriptionManagementApi';
 import { BillingCycle } from '../../types/subscription';
+import { getPaymentTransactions } from '../../utils/paymentData';
 
 export interface PaymentOrderRequest {
   planId?: string;
@@ -202,17 +203,10 @@ export const paymentApi = {
    */
   getPaymentTransactions: async (email: string, role?: string) => {
     await new Promise((resolve) => setTimeout(resolve, 150));
-    const history = getItem<any[]>(STORAGE_KEYS.PAYMENTS, []);
+    const history = getPaymentTransactions();
     const cleanEmail = email.trim().toLowerCase();
 
     if (role === 'Admin') {
-      if (history.length === 0) {
-        return [
-          { id: 'txn-1', reference: 'TXN-99201', customer: 'Priya Sundaram', customerEmail: 'priya@datasolutions.com', method: 'Stripe (Visa)', amount: 14999, status: 'Success', date: '2026-07-01' },
-          { id: 'txn-2', reference: 'TXN-99202', customer: 'Rohan Sharma', customerEmail: 'rohan.sharma@techcorp.in', method: 'Razorpay (UPI)', amount: 4999, status: 'Success', date: '2026-07-05' },
-          { id: 'txn-3', reference: 'TXN-99203', customer: 'Aarav Mehta', customerEmail: 'aarav@cloudnexus.io', method: 'Stripe (Mastercard)', amount: 1999, status: 'Success', date: '2026-06-10' },
-        ];
-      }
       return history;
     }
 

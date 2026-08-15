@@ -488,19 +488,18 @@ def send_password_reset_email(to_email: str, first_name: str, reset_token: str) 
 # Account suspension email
 # ---------------------------------------------------------------------------
 
-def send_suspension_email(to_email: str, first_name: str, reason: str = "") -> None:
+def send_suspension_email(to_email: str, customer_name: str, reason: str = "") -> None:
     logger.info("=== [BACKGROUND TASK] Sending Account Suspension email to %s ===", to_email)
-    subject = "Your Billing Platform account has been suspended"
+    subject = "Your Billing Platform Account Has Been Suspended"
     support_url = f"{settings.FRONTEND_URL}/customer/support"
 
     reason_text = f"\nReason: {reason}\n" if reason else ""
     text_body = (
-        f"Hi {first_name},\n\n"
-        "Your Billing Platform account has been temporarily suspended.\n"
+        f"Hello {customer_name},\n\n"
+        "Your Billing Platform account has been suspended by the administrator.\n"
         f"{reason_text}\n"
-        "Your account is currently unavailable for normal access.\n\n"
-        "If you believe this suspension was made in error or you would like to request account restoration, please contact our Support team:\n"
-        f"{support_url}\n\n"
+        "If you believe this was a mistake or want to restore your account, please contact support.\n\n"
+        f"Contact Support: {support_url}\n\n"
         "— Billing Platform Team"
     )
 
@@ -526,14 +525,14 @@ def send_suspension_email(to_email: str, first_name: str, reason: str = "") -> N
           <tr>
             <td style="padding:32px 36px;">
               <p style="margin:0 0 12px;font-size:18px;font-weight:700;color:#0f172a;">
-                Hi {first_name},
+                Hello {customer_name},
               </p>
               <p style="margin:0 0 20px;font-size:14px;color:#475569;line-height:1.6;">
-                Your Billing Platform account has been temporarily suspended by an administrator. Your account is currently unavailable for normal access.
+                Your Billing Platform account has been suspended by the administrator.
               </p>
               {reason_html}
               <p style="margin:0 0 24px;font-size:14px;color:#475569;line-height:1.6;">
-                If you believe this suspension was made in error or you would like to request account restoration, please contact our Support team.
+                If you believe this was a mistake or want to restore your account, please contact support.
               </p>
               <div style="text-align:center;margin:32px 0;">
                 <a href="{support_url}"
@@ -563,4 +562,7 @@ def send_suspension_email(to_email: str, first_name: str, reason: str = "") -> N
 </body>
 </html>
 """
-    _send(to_email, subject, html_body, text_body)
+    try:
+        _send(to_email, subject, html_body, text_body)
+    except Exception as exc:
+        logger.error("Failed to send suspension email to %s: %s", to_email, exc)

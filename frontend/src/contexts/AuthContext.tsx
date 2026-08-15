@@ -26,12 +26,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    const session = authService.getCurrentSession();
-    if (session && session.user) {
-      setUser(session.user);
-      authService.checkProfileCompleteness(session.user);
-    }
-    setIsLoading(false);
+    const syncUser = () => {
+      const session = authService.getCurrentSession();
+      if (session && session.user) {
+        if (session.user.role === 'Customer') {
+          const customers = getItem<any[]>(STORAGE_KEYS.CUSTOMERS, []);
+          const cust = customers.find((c: any) => c.email?.toLowerCase() === session.user.email?.toLowerCase());
+          if (cust) {
+            session.user.accountStatus = cust.accountStatus || (cust.status === 'Suspended' ? 'SUSPENDED' : 'ACTIVE');
+            session.user.status = cust.status === 'Suspended' ? 'Suspended' : cust.status === 'Pending Verification' ? 'Pending Verification' : cust.status === 'Pending' ? 'Pending' : 'Verified';
+          }
+        }
+        setUser({ ...session.user });
+        authService.checkProfileCompleteness(session.user);
+      } else {
+        setUser(null);
+      }
+      setIsLoading(false);
+    };
+
+    syncUser();
+
+    window.addEventListener('storage_auth_updated', syncUser);
+    window.addEventListener('storage', syncUser);
+    return () => {
+      window.removeEventListener('storage_auth_updated', syncUser);
+      window.removeEventListener('storage', syncUser);
+    };
   }, []);
 
   const login = async (email: string, password: string, role: UserRole, fullName?: string): Promise<AuthSession> => {

@@ -2,6 +2,11 @@ import { getItem, STORAGE_KEYS } from '../../utils/storage';
 import { Customer } from '../../types/customer';
 import { Invoice } from '../../types/invoice';
 import { Subscription } from '../../types/subscription';
+import { User } from '../../types/auth';
+import { generateBillingStatementPdf } from '../../utils/pdf/billingStatementPdf';
+import { generatePaymentHistoryPdf } from '../../utils/pdf/paymentHistoryPdf';
+import { generateTaxInvoicePdf } from '../../utils/pdf/taxInvoicePdf';
+import { generatePaymentReceiptPdf } from '../../utils/pdf/paymentReceiptPdf';
 
 export interface DiscountRecord {
   id: string;
@@ -169,61 +174,33 @@ export const billingApi = {
   },
 
   /**
-   * TODO: API Method for downloading PDF Billing Statement
-   * Backend endpoint: GET /api/v1/customer/billing/statement?email={email}
+   * Generates and downloads the PDF Billing Statement directly in browser
    */
-  downloadBillingStatementPDF: async (email: string): Promise<void> => {
-    // TODO: Connect to FastAPI endpoint GET /api/v1/customer/billing/statement
-    console.log(`[TODO: Backend API] Triggering PDF billing statement download for ${email}`);
-    // Client-side fallback / window print
-    window.print();
+  downloadBillingStatementPDF: async (data: CustomerBillingSummary, user: User | null): Promise<void> => {
+    generateBillingStatementPdf(data, user);
   },
 
   /**
-   * TODO: API Method for downloading Payment History CSV
-   * Backend endpoint: GET /api/v1/customer/billing/payments/csv?email={email}
+   * Generates and downloads the PDF Payment History directly in browser
    */
-  downloadPaymentHistoryCSV: async (email: string, paymentsData: Array<Record<string, unknown>>): Promise<void> => {
-    // TODO: Connect to FastAPI endpoint GET /api/v1/customer/billing/payments/csv
-    console.log(`[TODO: Backend API] Triggering Payment History CSV export for ${email}`);
-    
-    // Client-side CSV download fallback
-    if (!paymentsData || paymentsData.length === 0) return;
-    const headers = Object.keys(paymentsData[0]);
-    const csvLines = [
-      headers.join(','),
-      ...paymentsData.map((row) =>
-        headers.map((h) => `"${String(row[h] ?? '').replace(/"/g, '""')}"`).join(',')
-      ),
-    ];
-    const blob = new Blob([csvLines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `payment_history_${email.split('@')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+  downloadPaymentHistoryPDF: async (payments: any[], user: User | null): Promise<void> => {
+    generatePaymentHistoryPdf(payments, user);
   },
 
   /**
-   * TODO: API Method for downloading Tax Invoice
-   * Backend endpoint: GET /api/v1/customer/billing/tax-invoice?email={email}
+   * Generates and downloads the PDF Tax Invoice directly in browser
    */
-  downloadTaxInvoice: async (email: string, invoiceNumber?: string): Promise<void> => {
-    // TODO: Connect to FastAPI endpoint GET /api/v1/customer/billing/tax-invoice
-    console.log(`[TODO: Backend API] Triggering Tax Invoice download for ${email}, invoice: ${invoiceNumber || 'latest'}`);
-    alert(`Downloading Tax Invoice ${invoiceNumber ? `#${invoiceNumber}` : ''} for ${email}...`);
+  downloadTaxInvoicePDF: async (data: CustomerBillingSummary, user: User | null): Promise<void> => {
+    generateTaxInvoicePdf(data, user);
   },
 
   /**
-   * TODO: API Method for downloading Receipts
-   * Backend endpoint: GET /api/v1/customer/billing/receipts?email={email}
+   * Generates and downloads the PDF Payment Receipt directly in browser
    */
-  downloadReceipts: async (email: string): Promise<void> => {
-    // TODO: Connect to FastAPI endpoint GET /api/v1/customer/billing/receipts
-    console.log(`[TODO: Backend API] Triggering Receipts archive download for ${email}`);
-    alert(`Downloading all payment receipts for ${email}...`);
+  downloadReceiptsPDF: async (
+    data: CustomerBillingSummary,
+    user: User | null
+  ): Promise<{ success: boolean; message?: string }> => {
+    return generatePaymentReceiptPdf(data, user);
   },
 };

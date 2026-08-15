@@ -14,11 +14,18 @@ import {
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
+import { Toast } from '../../components/common/Toast';
 import { formatCurrency } from '../../utils/formatters';
 import { getItem, STORAGE_KEYS } from '../../utils/storage';
 import { Customer } from '../../types/customer';
 import { Invoice } from '../../types/invoice';
 import { Subscription } from '../../types/subscription';
+import {
+  generateRevenueReportPdf,
+  generateCustomerGrowthReportPdf,
+  generateSubscriptionsReportPdf,
+  generateInvoicesReportPdf,
+} from '../../utils/pdf/reportsPdf';
 
 type ReportTab = 'revenue' | 'customers' | 'subscriptions' | 'invoices';
 
@@ -27,12 +34,10 @@ const Bar: React.FC<{ value: number; max: number; color: string; label: string }
   value,
   max,
   color,
-  label,
 }) => {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0;
   return (
     <div className="flex items-end gap-1 flex-col w-full">
-      <span className="text-[10px] text-mutedText font-semibold self-end">{label}</span>
       <div className="w-full bg-secondary rounded-full h-2">
         <div
           className={`h-2 rounded-full transition-all duration-500 ${color}`}
@@ -41,6 +46,15 @@ const Bar: React.FC<{ value: number; max: number; color: string; label: string }
       </div>
     </div>
   );
+};
+
+// Format current date in YYYY-MM-DD for file names
+const getReportDateString = (): string => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 // Generate CSV from array of objects
@@ -66,6 +80,20 @@ function downloadCSV(filename: string, rows: Record<string, unknown>[]) {
 
 export const ReportsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ReportTab>('revenue');
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [toast, setToast] = useState<{
+    isVisible: boolean;
+    message: string;
+    type: 'success' | 'error' | 'info';
+  }>({
+    isVisible: false,
+    message: '',
+    type: 'success',
+  });
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    setToast({ isVisible: true, message, type });
+  };
 
   // Load live data
   const customers = useMemo(() => getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []), []);
@@ -97,54 +125,101 @@ export const ReportsPage: React.FC = () => {
   ];
 
   const handleExportCSV = () => {
+    const dateStr = getReportDateString();
     if (activeTab === 'revenue') {
-      downloadCSV('revenue_report.csv', [
-        { Metric: 'Total Revenue', Value: formatCurrency(totalRevenue) },
-        { Metric: 'Pending Revenue', Value: formatCurrency(pendingRevenue) },
-        { Metric: 'Monthly Recurring Revenue (MRR)', Value: formatCurrency(totalMRR) },
-        { Metric: 'Paid Invoices', Value: paidInvoices.toString() },
+      downloadCSV(`Revenue-MRR-Report-${dateStr}.csv`, [
+        { Category: 'Paid Revenue', Amount: formatCurrency(totalRevenue) },
+        { Category: 'Pending Revenue', Amount: formatCurrency(pendingRevenue) },
+        { Category: 'Monthly MRR (Recurring)', Amount: formatCurrency(totalMRR) },
+        { Category: 'Paid Invoices', Amount: paidInvoices.toString() },
       ]);
+      showToast('CSV report downloaded successfully.', 'success');
     } else if (activeTab === 'customers') {
-      downloadCSV('customer_report.csv',
+      if (!customers || customers.length === 0) {
+        showToast('No data available for this report.', 'info');
+        return;
+      }
+      downloadCSV(
+        `Customer-Growth-Report-${dateStr}.csv`,
         customers.map((c) => ({
-          ID: c.customerId || c.id,
+          'Customer ID': c.customerId || c.id,
           Name: c.name,
           Email: c.email,
-          Phone: c.phone,
+          Phone: c.phone || '',
           Status: c.status,
-          Plan: c.subscriptionPlan,
+          Plan: c.subscriptionPlan || 'No Plan',
           MRR: formatCurrency(c.mrr || 0),
-          Joined: c.joinedDate || '',
+          'Joined Date': c.joinedDate || c.registrationDate || '',
         }))
       );
+      showToast('CSV report downloaded successfully.', 'success');
     } else if (activeTab === 'subscriptions') {
-      downloadCSV('subscriptions_report.csv',
+      if (!subscriptions || subscriptions.length === 0) {
+        showToast('No data available for this report.', 'info');
+        return;
+      }
+      downloadCSV(
+        `Subscriptions-Report-${dateStr}.csv`,
         subscriptions.map((s) => ({
-          ID: s.id,
-          Customer: s.customerEmail,
-          Plan: s.planName,
+          'Subscription ID': s.id,
+          'Customer Email': s.customerEmail || s.customerName || '',
+          'Plan Name': s.planName || '',
+          'Billing Cycle': s.billingCycle || 'Monthly',
           Status: s.status,
-          Cycle: s.billingCycle,
           Amount: formatCurrency(s.amount || 0),
           'Next Renewal': s.nextBillingDate || '',
         }))
       );
-    } else {
-      downloadCSV('invoices_report.csv',
+      showToast('CSV report downloaded successfully.', 'success');
+    } else if (activeTab === 'invoices') {
+      if (!invoices || invoices.length === 0) {
+        showToast('No data available for this report.', 'info');
+        return;
+      }
+      downloadCSV(
+        `Invoices-Report-${dateStr}.csv`,
         invoices.map((inv) => ({
-          ID: inv.id,
-          Customer: inv.customerName,
-          Amount: formatCurrency(inv.amount),
+          'Invoice ID': inv.invoiceNumber || inv.id,
+          Customer: inv.customerName || '',
+          'Customer ID': inv.customerEmail || '',
+          Amount: formatCurrency(inv.amount || 0),
           Status: inv.status,
           Date: inv.issueDate || '',
           'Due Date': inv.dueDate || '',
         }))
       );
+      showToast('CSV report downloaded successfully.', 'success');
     }
   };
 
   const handlePrintPDF = () => {
-    window.print();
+    setIsGeneratingPdf(true);
+    showToast('Generating PDF...', 'info');
+
+    setTimeout(() => {
+      try {
+        if (activeTab === 'revenue') {
+          generateRevenueReportPdf({
+            totalRevenue,
+            pendingRevenue,
+            totalMRR,
+            paidInvoices,
+          });
+        } else if (activeTab === 'customers') {
+          generateCustomerGrowthReportPdf(customers);
+        } else if (activeTab === 'subscriptions') {
+          generateSubscriptionsReportPdf(subscriptions);
+        } else if (activeTab === 'invoices') {
+          generateInvoicesReportPdf(invoices);
+        }
+        setIsGeneratingPdf(false);
+        showToast('PDF report downloaded successfully.', 'success');
+      } catch (err) {
+        console.error('Failed to generate PDF:', err);
+        setIsGeneratingPdf(false);
+        showToast('Unable to generate PDF. Please try again.', 'error');
+      }
+    }, 150);
   };
 
   return (
@@ -167,14 +242,17 @@ export const ReportsPage: React.FC = () => {
             size="sm"
             leftIcon={<Printer className="w-4 h-4" />}
             onClick={handlePrintPDF}
+            isLoading={isGeneratingPdf}
+            disabled={isGeneratingPdf}
           >
-            Print / PDF
+            {isGeneratingPdf ? 'Generating PDF...' : 'Print / PDF'}
           </Button>
           <Button
             variant="primary"
             size="sm"
             leftIcon={<Download className="w-4 h-4" />}
             onClick={handleExportCSV}
+            disabled={isGeneratingPdf}
           >
             Export CSV
           </Button>
@@ -249,7 +327,7 @@ export const ReportsPage: React.FC = () => {
                     <span className="font-semibold text-heading">{row.label}</span>
                     <span className="font-bold text-heading">{formatCurrency(row.amount)}</span>
                   </div>
-                  <Bar value={row.amount} max={Math.max(totalRevenue, totalMRR, pendingRevenue)} color={row.color} label="" />
+                  <Bar value={row.amount} max={Math.max(totalRevenue, totalMRR, pendingRevenue, 1)} color={row.color} label="" />
                 </div>
               ))}
             </div>
@@ -280,7 +358,7 @@ export const ReportsPage: React.FC = () => {
           <Card className="p-5 overflow-x-auto">
             <h2 className="text-sm font-bold text-heading mb-4">Customer Directory</h2>
             {customers.length === 0 ? (
-              <p className="text-xs text-mutedText text-center py-6">No customers found</p>
+              <p className="text-xs text-mutedText text-center py-6">No data available for this report.</p>
             ) : (
               <table className="w-full text-xs">
                 <thead>
@@ -335,7 +413,7 @@ export const ReportsPage: React.FC = () => {
           <Card className="p-5 overflow-x-auto">
             <h2 className="text-sm font-bold text-heading mb-4">All Subscriptions</h2>
             {subscriptions.length === 0 ? (
-              <p className="text-xs text-mutedText text-center py-6">No subscriptions found</p>
+              <p className="text-xs text-mutedText text-center py-6">No data available for this report.</p>
             ) : (
               <table className="w-full text-xs">
                 <thead>
@@ -388,7 +466,7 @@ export const ReportsPage: React.FC = () => {
           <Card className="p-5 overflow-x-auto">
             <h2 className="text-sm font-bold text-heading mb-4">Invoice History</h2>
             {invoices.length === 0 ? (
-              <p className="text-xs text-mutedText text-center py-6">No invoices found</p>
+              <p className="text-xs text-mutedText text-center py-6">No data available for this report.</p>
             ) : (
               <table className="w-full text-xs">
                 <thead>
@@ -417,6 +495,14 @@ export const ReportsPage: React.FC = () => {
           </Card>
         </div>
       )}
+
+      {/* Toast Notification */}
+      <Toast
+        isVisible={toast.isVisible}
+        message={toast.message}
+        type={toast.type}
+        onClose={() => setToast((prev) => ({ ...prev, isVisible: false }))}
+      />
     </div>
   );
 };
