@@ -2,7 +2,10 @@ import hashlib
 import hmac
 import secrets
 import string
+import logging
 from datetime import datetime, timedelta, timezone
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
 from fastapi.security import OAuth2PasswordBearer
@@ -16,7 +19,12 @@ from app.schemas.user import UserCreate, OTPVerifyRequest, ResetPasswordRequest,
 from app.auth.jwt import create_access_token
 from app.auth.password import hash_password, verify_password
 from app.auth.dependencies import get_current_user
-from app.auth.email import send_otp_email, send_welcome_email, send_password_reset_email
+from app.auth.email import (
+    send_otp_email,
+    send_welcome_email,
+    send_password_reset_email,
+    send_profile_incomplete_email,
+)
 from app.config import settings
 from app.auth.rate_limit import (
     login_limiter,
@@ -53,22 +61,39 @@ def _hash_reset_token(token: str) -> str:
 
 def _user_response(user: User) -> dict:
     """Serialise a User ORM object into the shape the frontend expects."""
+    cust_prefix = "ADM-2026" if user.role == "Admin" else "CUS-2026"
+    customer_id = f"{cust_prefix}-{user.id:06d}"
+    created_iso = user.created_at.isoformat() if user.created_at else datetime.now(timezone.utc).isoformat()
+    created_fmt = user.created_at.strftime("%d/%m/%Y") if user.created_at else datetime.now(timezone.utc).strftime("%d/%m/%Y")
+
+    acc_status = getattr(user, "account_status", None) or "ACTIVE"
+
     return {
         "id": str(user.id),
-        "customerId": None,
+        "customerId": customer_id,
         "fullName": f"{user.first_name} {user.last_name}",
         "firstName": user.first_name,
         "lastName": user.last_name,
         "email": user.email,
         "phoneNumber": user.phone_number,
+        "phone": user.phone_number,
         "country": user.country,
         "role": user.role,
-        "createdAt": user.created_at.isoformat(),
+        "createdAt": created_iso,
+        "isVerified": user.is_verified,
         "status": "Verified" if user.is_verified else "Pending",
-        "registrationDate": user.created_at.strftime("%d/%m/%Y"),
+        "accountStatus": acc_status,
+        "registrationDate": created_fmt,
+        "joinedDate": user.created_at.strftime("%Y-%m-%d") if user.created_at else datetime.now(timezone.utc).strftime("%Y-%m-%d"),
         "currentPlan": "Starter",
+        "subscriptionPlan": "Starter",
         "subscriptionStatus": "Active",
         "themePreference": "light",
+        "deletedAt": user.deleted_at.isoformat() if getattr(user, "deleted_at", None) else None,
+        "deletedBy": getattr(user, "deleted_by", None),
+        "suspendedAt": user.suspended_at.isoformat() if getattr(user, "suspended_at", None) else None,
+        "suspendedBy": getattr(user, "suspended_by", None),
+        "suspensionReason": getattr(user, "suspension_reason", None),
     }
 
 
@@ -262,6 +287,18 @@ def login_user(
     ):
         raise HTTPException(status_code=400, detail="Invalid email or password")
 
+    if getattr(db_user, "account_status", "ACTIVE") == "DELETED" or getattr(db_user, "deleted_at", None) is not None:
+        raise HTTPException(
+            status_code=403,
+            detail="Your account has been deleted. Please contact Support if you believe this was an error.",
+        )
+
+    if getattr(db_user, "account_status", "ACTIVE") == "SUSPENDED":
+        raise HTTPException(
+            status_code=403,
+            detail="ACCOUNT_SUSPENDED: Your Billing Platform account has been temporarily suspended by an administrator. Please contact Support to request account restoration.",
+        )
+
     if not db_user.is_active:
         raise HTTPException(status_code=403, detail="Account has been deactivated.")
 
@@ -306,14 +343,15 @@ def get_me(current_user: User = Depends(get_current_user)):
 @router.post("/forgot-password")
 def forgot_password(
     payload: ForgotPasswordRequest,
-    background_tasks: BackgroundTasks,
     _: None = Depends(password_reset_limiter),
     db: Session = Depends(get_db),
 ):
+    logger.info("=== FORGOT PASSWORD REQUEST RECEIVED for email: %s ===", payload.email)
     user = db.query(User).filter(User.email == payload.email).first()
 
-    # Always return success to avoid email enumeration attacks
+    # Always return success message for non-existent or unverified users to avoid email enumeration
     if not user or not user.is_verified:
+        logger.warning("Forgot password requested for unknown or unverified email: %s", payload.email)
         return {
             "success": True,
             "message": "If that email is registered, you will receive a reset link shortly.",
@@ -329,9 +367,16 @@ def forgot_password(
     user.reset_token_expires_at = reset_expires
     db.commit()
 
-    background_tasks.add_task(
-        send_password_reset_email, user.email, user.first_name, reset_token
-    )
+    try:
+        logger.info("Executing send_password_reset_email for: %s", user.email)
+        send_password_reset_email(user.email, user.first_name, reset_token)
+        logger.info("Password reset email successfully delivered for: %s", user.email)
+    except Exception as exc:
+        logger.error("Failed to send password reset email to %s: %s", user.email, exc, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to deliver password reset email: {str(exc)}",
+        )
 
     return {
         "success": True,
@@ -402,4 +447,270 @@ def logout(
         "success": True,
         "message": "Logged out successfully.",
         "data": {"loggedOut": True},
+    }
+
+
+# ---------------------------------------------------------------------------
+# Request schemas for Provider Unlinking & Profile Notifications
+# ---------------------------------------------------------------------------
+
+class UnlinkProviderRequest(BaseModel):
+    email: EmailStr
+    provider: str
+
+
+class NotifyProfileIncompleteRequest(BaseModel):
+    email: EmailStr
+    fullName: str
+    missingFields: list[str] = []
+
+
+# ---------------------------------------------------------------------------
+# POST /auth/unlink-provider
+# ---------------------------------------------------------------------------
+
+@router.post("/unlink-provider")
+def unlink_provider(payload: UnlinkProviderRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == payload.email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    provider_lower = payload.provider.lower()
+    if provider_lower == "google":
+        user.google_id = None
+    elif provider_lower == "microsoft":
+        user.microsoft_id = None
+    elif provider_lower == "apple":
+        user.apple_id = None
+
+    db.commit()
+    return {
+        "success": True,
+        "message": f"{payload.provider} disconnected successfully.",
+        "data": {"unlinked": True},
+    }
+
+
+# ---------------------------------------------------------------------------
+# POST /auth/notify-profile-incomplete
+# ---------------------------------------------------------------------------
+
+@router.post("/notify-profile-incomplete")
+def notify_profile_incomplete(
+    payload: NotifyProfileIncompleteRequest,
+    background_tasks: BackgroundTasks,
+):
+    background_tasks.add_task(
+        send_profile_incomplete_email,
+        payload.email,
+        payload.fullName,
+        payload.missingFields,
+    )
+    return {
+        "success": True,
+        "message": "Profile incomplete email notification queued successfully.",
+        "data": {"emailSent": True},
+    }
+
+
+class TestEmailRequest(BaseModel):
+    to_email: EmailStr
+
+
+# ---------------------------------------------------------------------------
+# POST /auth/test-email (Development-Only Email Delivery Diagnostics)
+# ---------------------------------------------------------------------------
+
+@router.post("/test-email")
+def test_email_endpoint(payload: TestEmailRequest):
+    if settings.ENVIRONMENT == "production":
+        raise HTTPException(status_code=403, detail="Test email endpoint is disabled in production environment.")
+
+    logger.info("=== [TEST EMAIL DIAGNOSTICS INITIATED] Target: %s ===", payload.to_email)
+
+    from app.auth.email import validate_smtp_connection, send_test_email
+
+    logger.info("Step 1: Testing SMTP Host & Port Connection...")
+    conn_ok = validate_smtp_connection()
+    if not conn_ok:
+        logger.error("Step 1 Failed: Unable to establish SMTP connection or authenticate credentials.")
+        raise HTTPException(
+            status_code=500,
+            detail="SMTP Connection & Authentication check failed. Check backend logs for details."
+        )
+
+    logger.info("Step 2: Sending Plain Text Test Email...")
+    try:
+        send_test_email(payload.to_email)
+        logger.info("Step 3: Test email accepted by SMTP server for recipient: %s", payload.to_email)
+        return {
+            "success": True,
+            "message": f"Test email accepted by SMTP server for recipient: {payload.to_email}",
+            "data": {
+                "smtp_connection": "successful",
+                "smtp_auth": "successful",
+                "recipient_status": "accepted_by_smtp_relay",
+                "target_email": payload.to_email,
+            },
+        }
+    except Exception as exc:
+        logger.error("Step 3 Failed: Error while sending email to %s: %s", payload.to_email, exc)
+        raise HTTPException(
+            status_code=500,
+            detail=f"SMTP Email Send Failed for recipient '{payload.to_email}': {str(exc)}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# ADMIN CUSTOMER MANAGEMENT ENDPOINTS
+# ---------------------------------------------------------------------------
+
+class SuspendCustomerRequest(BaseModel):
+    reason: str = ""
+
+
+@router.get("/admin/customers")
+def admin_get_customers(
+    status_filter: str = "active",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.role != "Admin":
+        raise HTTPException(status_code=403, detail="Admin authorization required")
+
+    query = db.query(User).filter(User.role == "Customer")
+
+    if status_filter == "active":
+        query = query.filter(
+            User.is_verified == True,
+            User.account_status == "ACTIVE",
+            User.deleted_at == None,
+        )
+    elif status_filter == "suspended":
+        query = query.filter(
+            User.account_status == "SUSPENDED",
+            User.deleted_at == None,
+        )
+    elif status_filter == "deleted":
+        query = query.filter(
+            (User.account_status == "DELETED") | (User.deleted_at != None)
+        )
+    elif status_filter == "unverified":
+        query = query.filter(
+            User.is_verified == False,
+            User.deleted_at == None,
+        )
+    else:
+        query = query.filter(User.deleted_at == None)
+
+    customers = query.order_by(User.id.desc()).all()
+    return {
+        "success": True,
+        "data": [_user_response(c) for c in customers],
+    }
+
+
+@router.post("/admin/customers/{user_id}/suspend")
+def admin_suspend_customer(
+    user_id: str,
+    payload: SuspendCustomerRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.role != "Admin":
+        raise HTTPException(status_code=403, detail="Admin authorization required")
+
+    try:
+        numeric_id = int(user_id.replace("CUS-2026-", "").replace("cust-", ""))
+        customer = db.query(User).filter(User.id == numeric_id, User.role == "Customer").first()
+    except ValueError:
+        customer = db.query(User).filter(User.email == user_id, User.role == "Customer").first()
+
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer account not found")
+
+    customer.account_status = "SUSPENDED"
+    customer.suspended_at = datetime.now(timezone.utc)
+    customer.suspended_by = current_user.email
+    customer.suspension_reason = payload.reason
+    db.commit()
+    db.refresh(customer)
+
+    background_tasks.add_task(
+        send_suspension_email,
+        customer.email,
+        customer.first_name,
+        payload.reason,
+    )
+
+    return {
+        "success": True,
+        "message": f"Customer {customer.first_name} {customer.last_name} has been suspended.",
+        "data": _user_response(customer),
+    }
+
+
+@router.post("/admin/customers/{user_id}/restore")
+def admin_restore_customer(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.role != "Admin":
+        raise HTTPException(status_code=403, detail="Admin authorization required")
+
+    try:
+        numeric_id = int(user_id.replace("CUS-2026-", "").replace("cust-", ""))
+        customer = db.query(User).filter(User.id == numeric_id, User.role == "Customer").first()
+    except ValueError:
+        customer = db.query(User).filter(User.email == user_id, User.role == "Customer").first()
+
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer account not found")
+
+    customer.account_status = "ACTIVE"
+    customer.deleted_at = None
+    customer.deleted_by = None
+    customer.suspended_at = None
+    customer.suspended_by = None
+    customer.suspension_reason = None
+    db.commit()
+    db.refresh(customer)
+
+    return {
+        "success": True,
+        "message": f"Customer account {customer.first_name} {customer.last_name} restored successfully.",
+        "data": _user_response(customer),
+    }
+
+
+@router.post("/admin/customers/{user_id}/soft-delete")
+def admin_soft_delete_customer(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.role != "Admin":
+        raise HTTPException(status_code=403, detail="Admin authorization required")
+
+    try:
+        numeric_id = int(user_id.replace("CUS-2026-", "").replace("cust-", ""))
+        customer = db.query(User).filter(User.id == numeric_id, User.role == "Customer").first()
+    except ValueError:
+        customer = db.query(User).filter(User.email == user_id, User.role == "Customer").first()
+
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer account not found")
+
+    customer.account_status = "DELETED"
+    customer.deleted_at = datetime.now(timezone.utc)
+    customer.deleted_by = current_user.email
+    db.commit()
+    db.refresh(customer)
+
+    return {
+        "success": True,
+        "message": f"Customer {customer.first_name} {customer.last_name} soft-deleted. Account moved to Recycle Bin.",
+        "data": _user_response(customer),
     }

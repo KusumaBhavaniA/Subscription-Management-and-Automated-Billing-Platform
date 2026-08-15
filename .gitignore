@@ -1,7 +1,40 @@
-node_modules
-dist
-dist-ssr
-*.local
-.vscode
+# Dependencies
+node_modules/
+
+# Build & Output
+dist/
+dist-ssr/
+build/
+
+# Environment variables & secrets — NEVER commit real credentials
+.env
+.env.*
+!.env.example
+*.env
+credentials.json
+*.pem
+*.key
+*.p8
+*.pfx
+
+# Python cache & virtualenv
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE & OS files
+.vscode/
+.idea/
 .DS_Store
+Thumbs.db
+*.local
 .antigravity

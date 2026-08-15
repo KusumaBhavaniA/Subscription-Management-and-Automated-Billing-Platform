@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, UserRole, RegisterCustomerDTO, AuthSession, SocialProvider } from '../types/auth';
 import { authService } from '../services/authService';
-import { STORAGE_KEYS, setItem } from '../utils/storage';
+import { STORAGE_KEYS, getItem, setItem } from '../utils/storage';
 
 interface AuthContextType {
   user: User | null;
@@ -29,6 +29,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const session = authService.getCurrentSession();
     if (session && session.user) {
       setUser(session.user);
+      authService.checkProfileCompleteness(session.user);
     }
     setIsLoading(false);
   }, []);
@@ -36,18 +37,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password: string, role: UserRole, fullName?: string): Promise<AuthSession> => {
     const session = await authService.login(email, password, role, fullName);
     setUser(session.user);
+    authService.checkProfileCompleteness(session.user);
     return session;
   };
 
   const socialLogin = async (provider: SocialProvider): Promise<AuthSession> => {
     const session = await authService.socialLogin(provider);
     setUser(session.user);
+    authService.checkProfileCompleteness(session.user);
     return session;
   };
 
   const acceptSession = (session: AuthSession) => {
     setItem(STORAGE_KEYS.AUTH, session);
     setUser(session.user);
+    authService.checkProfileCompleteness(session.user);
   };
 
   const logout = () => {
@@ -71,11 +75,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (user) {
       const newUserData = { ...user, ...updatedUser };
       setUser(newUserData);
+
       const session = authService.getCurrentSession();
       if (session) {
         session.user = newUserData;
         setItem(STORAGE_KEYS.AUTH, session);
       }
+
+      // Sync with STORAGE_KEYS.USERS
+      const users = getItem<any[]>(STORAGE_KEYS.USERS, []);
+      const userIdx = users.findIndex((u: any) => u.email?.toLowerCase() === newUserData.email?.toLowerCase());
+      if (userIdx !== -1) {
+        users[userIdx] = { ...users[userIdx], ...newUserData };
+        setItem(STORAGE_KEYS.USERS, users);
+      }
+
+      // Sync with STORAGE_KEYS.CUSTOMERS
+      if (newUserData.role === 'Customer') {
+        const customers = getItem<any[]>(STORAGE_KEYS.CUSTOMERS, []);
+        const custIdx = customers.findIndex((c: any) => c.email?.toLowerCase() === newUserData.email?.toLowerCase());
+        if (custIdx !== -1) {
+          customers[custIdx] = {
+            ...customers[custIdx],
+            name: newUserData.fullName,
+            firstName: newUserData.firstName,
+            lastName: newUserData.lastName,
+            phone: newUserData.phoneNumber || customers[custIdx].phone || '',
+            address: newUserData.address || customers[custIdx].address || '',
+            country: newUserData.country || customers[custIdx].country || 'India',
+          };
+          setItem(STORAGE_KEYS.CUSTOMERS, customers);
+        }
+      }
+
+      authService.checkProfileCompleteness(newUserData);
     }
   };
 

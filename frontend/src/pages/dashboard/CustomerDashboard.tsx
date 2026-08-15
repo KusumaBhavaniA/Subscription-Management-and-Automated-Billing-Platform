@@ -31,10 +31,11 @@ import { Plan } from '../../types/plan';
 import { subscriptionManagementApi } from '../../services/api/subscriptionManagementApi';
 import { planApi } from '../../services/api/planApi';
 
+import { authService } from '../../services/authService';
+
 export const CustomerDashboard: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [showWelcomeCard, setShowWelcomeCard] = useState(true);
 
   const [activeSub, setActiveSub] = useState<Subscription | null>(null);
   const [planDetails, setPlanDetails] = useState<Plan | null>(null);
@@ -72,8 +73,9 @@ export const CustomerDashboard: React.FC = () => {
     loadDashboardData();
   }, [user]);
 
-  const customerName = user?.fullName || 'Customer';
+  const firstName = user?.firstName || user?.fullName?.split(' ')[0] || 'Customer';
   const accountStatus = user?.status || 'Verified';
+  const isProfileIncomplete = authService.isProfileIncomplete(user);
 
   const getSubStatusBadge = (st?: SubscriptionStatus) => {
     switch (st) {
@@ -98,100 +100,120 @@ export const CustomerDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
-      {/* WELCOME CARD */}
-      <AnimatePresence>
-        {showWelcomeCard && (
-          <motion.div
-            initial={{ opacity: 0, y: -15, scale: 0.99 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -15, scale: 0.98 }}
-            transition={{ duration: 0.3 }}
-            className="relative overflow-hidden rounded-2xl p-6 sm:p-8 bg-card border border-border text-primaryText shadow-sm space-y-6"
+      {/* WELCOME & SUMMARY SECTION */}
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-heading">
+              Welcome back, {firstName} 👋
+            </h1>
+            <p className="text-xs sm:text-sm text-secondaryText font-medium mt-1">
+              Here's a quick overview of your billing workspace.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/customer/subscriptions')}
+            rightIcon={<ArrowRight className="w-4 h-4" />}
+            className="self-start sm:self-auto"
           >
-            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <div className="space-y-2 max-w-xl">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 text-xs font-bold">
-                  <Sparkles className="w-3.5 h-3.5 text-primary" />
-                  <span>Verified Customer Workspace</span>
-                </div>
-                <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-heading">
-                  Welcome Back, {customerName} 👋
-                </h2>
-                <p className="text-sm text-secondaryText font-medium">
-                  Your billing workspace is synchronized with backend APIs in real time.
-                </p>
-              </div>
+            My Subscription
+          </Button>
+        </div>
 
-              {/* Grid Metrics */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-secondary p-4 rounded-xl border border-border shrink-0">
-                <div className="space-y-0.5">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-mutedText">
-                    Current Plan
-                  </span>
-                  <div className="flex items-center gap-1.5 font-extrabold text-sm text-heading">
-                    <BookmarkCheck className="w-3.5 h-3.5 text-primary" />
-                    <span>{hasActiveSubscription ? `${activeSub?.planName} (${activeSub?.billingCycle})` : 'None'}</span>
-                  </div>
-                </div>
+        {/* 4 SUMMARY CARDS */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Current Plan */}
+          <div className="p-4 rounded-2xl bg-card border border-border text-primaryText shadow-xs flex items-center gap-3.5">
+            <div className="p-2.5 rounded-xl bg-primary/10 text-primary border border-primary/20 shrink-0">
+              <BookmarkCheck className="w-5 h-5 text-primary" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-mutedText block truncate">
+                Current Plan
+              </span>
+              <p className="font-extrabold text-sm text-heading truncate mt-0.5">
+                {hasActiveSubscription ? `${activeSub?.planName}` : 'None'}
+              </p>
+            </div>
+          </div>
 
-                <div className="space-y-0.5">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-mutedText">
-                    Account Status
-                  </span>
-                  <div className="flex items-center gap-1.5 font-extrabold text-sm text-success">
-                    <ShieldCheck className="w-3.5 h-3.5 text-success" />
-                    <span>{accountStatus}</span>
-                  </div>
-                </div>
+          {/* Account Status */}
+          <div className="p-4 rounded-2xl bg-card border border-border text-primaryText shadow-xs flex items-center gap-3.5">
+            <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-mutedText block truncate">
+                Account Status
+              </span>
+              <p className="font-extrabold text-sm text-emerald-600 dark:text-emerald-400 truncate mt-0.5">
+                {accountStatus}
+              </p>
+            </div>
+          </div>
 
-                <div className="space-y-0.5">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-mutedText">
-                    Subscription
-                  </span>
-                  <div className="flex items-center gap-1.5 font-extrabold text-sm text-primary">
-                    {getSubStatusBadge(activeSub?.status)}
-                  </div>
-                </div>
-
-                <div className="space-y-0.5">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-mutedText">
-                    Next Renewal
-                  </span>
-                  <div className="flex items-center gap-1.5 font-extrabold text-xs text-primary font-mono">
-                    <Calendar className="w-3.5 h-3.5 text-primary" />
-                    <span>{hasActiveSubscription && activeSub?.nextBillingDate ? formatDate(activeSub.nextBillingDate) : 'N/A'}</span>
-                  </div>
-                </div>
+          {/* Subscription Status */}
+          <div className="p-4 rounded-2xl bg-card border border-border text-primaryText shadow-xs flex items-center gap-3.5">
+            <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shrink-0">
+              <Zap className="w-5 h-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-mutedText block truncate">
+                Subscription Status
+              </span>
+              <div className="mt-0.5">
+                {getSubStatusBadge(activeSub?.status)}
               </div>
             </div>
+          </div>
 
-            <button
-              onClick={() => setShowWelcomeCard(false)}
-              className="absolute top-4 right-4 p-1.5 rounded-lg text-mutedText hover:text-primaryText hover:bg-secondary transition-colors"
-              title="Dismiss Welcome Card"
+          {/* Next Renewal */}
+          <div className="p-4 rounded-2xl bg-card border border-border text-primaryText shadow-xs flex items-center gap-3.5">
+            <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shrink-0">
+              <Calendar className="w-5 h-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-mutedText block truncate">
+                Next Renewal
+              </span>
+              <p className="font-extrabold text-xs text-heading font-mono truncate mt-0.5">
+                {hasActiveSubscription && activeSub?.nextBillingDate ? formatDate(activeSub.nextBillingDate) : 'N/A'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* PROFILE COMPLETION CARD */}
+        {isProfileIncomplete && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-2xl p-4 sm:p-5 bg-amber-500/5 border border-amber-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs"
+          >
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 shrink-0 mt-0.5">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-extrabold text-heading">Complete your profile</h3>
+                <p className="text-xs text-secondaryText font-medium mt-0.5">
+                  Add your missing details to keep your billing account up to date.
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => navigate('/customer/profile')}
+              rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
+              className="shrink-0 self-start sm:self-auto"
             >
-              <X className="w-4 h-4" />
-            </button>
+              Complete Profile
+            </Button>
           </motion.div>
         )}
-      </AnimatePresence>
-
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-heading">Customer Dashboard</h1>
-          <p className="text-xs text-secondaryText mt-1">
-            Real-time backend subscription tracking and billing statements.
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => navigate('/customer/subscriptions')}
-          rightIcon={<ArrowRight className="w-4 h-4" />}
-        >
-          My Subscription
-        </Button>
       </div>
 
       {/* MY SUBSCRIPTION SECTION */}

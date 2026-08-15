@@ -77,11 +77,31 @@ def _upsert_oauth_user(
     # 1. Match by provider ID (most reliable)
     user = db.query(User).filter(getattr(User, id_field) == provider_id).first()
     if user:
+        if getattr(user, "account_status", "ACTIVE") == "SUSPENDED":
+            raise HTTPException(
+                status_code=403,
+                detail="ACCOUNT_SUSPENDED: Your Billing Platform account has been temporarily suspended by an administrator. Please contact Support to request account restoration."
+            )
+        if getattr(user, "account_status", "ACTIVE") == "DELETED" or getattr(user, "deleted_at", None) is not None:
+            raise HTTPException(
+                status_code=403,
+                detail="Your account has been deleted. Please contact Support if you believe this was an error."
+            )
         return user
 
     # 2. Match by email — link provider to existing account
     user = db.query(User).filter(User.email == email).first()
     if user:
+        if getattr(user, "account_status", "ACTIVE") == "SUSPENDED":
+            raise HTTPException(
+                status_code=403,
+                detail="ACCOUNT_SUSPENDED: Your Billing Platform account has been temporarily suspended by an administrator. Please contact Support to request account restoration."
+            )
+        if getattr(user, "account_status", "ACTIVE") == "DELETED" or getattr(user, "deleted_at", None) is not None:
+            raise HTTPException(
+                status_code=403,
+                detail="Your account has been deleted. Please contact Support if you believe this was an error."
+            )
         setattr(user, id_field, provider_id)
         user.is_verified = True
         db.commit()

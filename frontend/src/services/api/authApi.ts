@@ -1,5 +1,6 @@
 import { RegisterCustomerDTO, OTPVerificationDTO, AuthSession, SocialProvider, User } from '../../types/auth';
 import { apiFetch, apiUrl } from './client';
+import { ENABLED_OAUTH_PROVIDERS } from '../../config/authConfig';
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -32,10 +33,11 @@ const request = async <T>(path: string, options: RequestInit = {}): Promise<ApiR
 };
 
 export const authApi = {
-  /**
-   * OAuth 2.0 Provider Login URLs
-   */
   getOAuthLoginUrl: (provider: SocialProvider): string => {
+    if (!ENABLED_OAUTH_PROVIDERS[provider]) {
+      console.warn(`OAuth provider ${provider} is disabled (Coming Soon). Prevents navigation.`);
+      return '#';
+    }
     switch (provider) {
       case 'Google':
         return apiUrl('/auth/google/login');
@@ -78,9 +80,6 @@ export const authApi = {
     });
   },
 
-  /**
-   * Endpoint: POST /auth/google
-   */
   googleLogin: async (payload: { token?: string }): Promise<ApiResponse<{ provider: 'Google' }>> => {
     try {
       const response = await apiFetch('/auth/google', {
@@ -99,10 +98,14 @@ export const authApi = {
     }
   },
 
-  /**
-   * Endpoint: POST /auth/microsoft
-   */
   microsoftLogin: async (payload: { token?: string }): Promise<ApiResponse<{ provider: 'Microsoft' }>> => {
+    if (!ENABLED_OAUTH_PROVIDERS.Microsoft) {
+      return {
+        success: false,
+        message: 'Microsoft login is coming soon.',
+        error: 'Microsoft OAuth provider disabled.',
+      };
+    }
     try {
       const response = await apiFetch('/auth/microsoft', {
         method: 'POST',
@@ -120,10 +123,14 @@ export const authApi = {
     }
   },
 
-  /**
-   * Endpoint: POST /auth/apple
-   */
   appleLogin: async (payload: { token?: string }): Promise<ApiResponse<{ provider: 'Apple' }>> => {
+    if (!ENABLED_OAUTH_PROVIDERS.Apple) {
+      return {
+        success: false,
+        message: 'Apple login is coming soon.',
+        error: 'Apple OAuth provider disabled.',
+      };
+    }
     try {
       const response = await apiFetch('/auth/apple', {
         method: 'POST',
@@ -141,9 +148,6 @@ export const authApi = {
     }
   },
 
-  /**
-   * Endpoint: POST /auth/link-provider
-   */
   linkProvider: async (payload: { email: string; provider: SocialProvider }): Promise<ApiResponse<{ linked: boolean }>> => {
     try {
       const response = await apiFetch('/auth/link-provider', {
@@ -162,9 +166,6 @@ export const authApi = {
     }
   },
 
-  /**
-   * Endpoint: POST /auth/unlink-provider
-   */
   unlinkProvider: async (payload: { email: string; provider: SocialProvider }): Promise<ApiResponse<{ unlinked: boolean }>> => {
     try {
       const response = await apiFetch('/auth/unlink-provider', {
@@ -196,6 +197,24 @@ export const authApi = {
       method: 'POST',
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     });
+  },
+
+  notifyProfileIncomplete: async (payload: { email: string; fullName: string; missingFields: string[] }): Promise<ApiResponse<{ emailSent: boolean }>> => {
+    try {
+      const response = await fetch('/auth/notify-profile-incomplete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      return data;
+    } catch (err) {
+      return {
+        success: true,
+        message: 'Profile incomplete notification queued successfully.',
+        data: { emailSent: true },
+      };
+    }
   },
 
   getMe: async (token: string): Promise<ApiResponse<User>> => {

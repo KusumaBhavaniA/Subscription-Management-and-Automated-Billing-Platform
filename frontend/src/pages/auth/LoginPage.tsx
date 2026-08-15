@@ -31,10 +31,13 @@ export const LoginPage: React.FC = () => {
 
   const successMessage = (location.state as any)?.message;
 
+  const [isSuspended, setIsSuspended] = useState(false);
+
   const handleTabChange = (role: UserRole) => {
     setActiveTab(role);
     setError(null);
     setIsUnverified(false);
+    setIsSuspended(false);
     setFullName('');
     setEmail('');
     setPassword('');
@@ -79,6 +82,7 @@ export const LoginPage: React.FC = () => {
     e.preventDefault();
     setError(null);
     setIsUnverified(false);
+    setIsSuspended(false);
 
     if (activeTab === 'Customer') {
       if (!fullName.trim()) {
@@ -137,7 +141,9 @@ export const LoginPage: React.FC = () => {
     } catch (err: any) {
       const msg = err.message || 'Invalid email or password.';
       setError(msg);
-      if (msg.includes('verify your email')) {
+      if (msg.includes('ACCOUNT_SUSPENDED') || msg.toLowerCase().includes('suspended')) {
+        setIsSuspended(true);
+      } else if (msg.includes('verify your email')) {
         setIsUnverified(true);
       }
     } finally {
@@ -216,12 +222,29 @@ export const LoginPage: React.FC = () => {
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
-                  className="p-3 rounded-xl bg-danger-bg border border-danger-border text-danger-text text-xs space-y-1.5 font-semibold"
+                  className={`p-3 rounded-xl text-xs space-y-2 text-left font-semibold ${
+                    isSuspended
+                      ? 'bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300'
+                      : 'bg-danger-bg border border-danger-border text-danger-text'
+                  }`}
                 >
                   <div className="flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0 text-danger" />
+                    <AlertCircle className={`w-4 h-4 shrink-0 ${isSuspended ? 'text-amber-500' : 'text-danger'}`} />
                     <span>{error}</span>
                   </div>
+
+                  {isSuspended && (
+                    <div className="pt-1">
+                      <Link
+                        to="/customer/support"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-600 text-white rounded-lg font-bold text-[11px] hover:bg-amber-700 transition-colors shadow-sm cursor-pointer"
+                      >
+                        <span>Contact Support</span>
+                        <ArrowUpRight className="w-3.5 h-3.5" />
+                      </Link>
+                    </div>
+                  )}
+
                   {isUnverified && (
                     <button
                       type="button"

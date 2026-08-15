@@ -107,6 +107,38 @@ class User(Base):
         nullable=True
     )
 
+    # Account lifecycle & status ("ACTIVE", "SUSPENDED", "DELETED")
+    account_status = Column(
+        String,
+        nullable=False,
+        default="ACTIVE"
+    )
+
+    deleted_at = Column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+
+    deleted_by = Column(
+        String,
+        nullable=True
+    )
+
+    suspended_at = Column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+
+    suspended_by = Column(
+        String,
+        nullable=True
+    )
+
+    suspension_reason = Column(
+        Text,
+        nullable=True
+    )
+
     created_at = Column(
         DateTime(timezone=True),
         server_default=func.now()
