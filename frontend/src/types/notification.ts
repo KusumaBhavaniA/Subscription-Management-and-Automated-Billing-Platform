@@ -14,13 +14,16 @@ export type NotificationType =
   | 'Ticket Assigned'
   | 'Ticket Closed'
   | 'Invoice Paid'
-  | 'Subscription Expiring';
+  | 'Subscription Expiring'
+  | 'Profile Incomplete';
 
 export interface NotificationItem {
   id: string;
-  title: NotificationType;
+  title: NotificationType | string;
   message: string;
   timestamp: string;
   isRead: boolean;
   type: 'success' | 'warning' | 'error' | 'info';
+  actionLabel?: string;
+  actionUrl?: string;
 }

@@ -130,7 +130,7 @@ export const ticketApi = {
 
   createTicket: async (payload: CreateTicketPayload): Promise<Ticket> => {
     const list = getItem<Ticket[]>(STORAGE_KEYS.TICKETS, INITIAL_TICKETS);
-    const ticketId = `TCK-2026-${Math.floor(100 + Math.random() * 900)}`;
+    const ticketId = `SUP-2026-${Math.floor(100000 + Math.random() * 900000)}`;
 
     const newTicket: Ticket = {
       id: ticketId,

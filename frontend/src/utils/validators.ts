@@ -1,9 +1,15 @@
 /**
- * Validates Indian Mobile Numbers (+91, 10 digits starting with 6-9)
+ * Validates Mobile Numbers with international country code support (+91, +1, +44, etc.)
  */
+export const validateMobileNumber = (phone: string, phoneCode?: string): boolean => {
+  const sanitized = phone.replace(/[\s\-\+\(\)]/g, '');
+  if (!sanitized) return false;
+  // Valid phone numbers are numeric and between 7 and 15 digits long
+  return /^\d{7,15}$/.test(sanitized);
+};
+
 export const validateIndianMobile = (phone: string): boolean => {
   const sanitized = phone.replace(/[\s\-\+\(\)]/g, '');
-  // Extract last 10 digits if it starts with 91 or 0
   const tenDigits = sanitized.length > 10 ? sanitized.slice(-10) : sanitized;
   const regex = /^[6-9]\d{9}$/;
   return regex.test(tenDigits);

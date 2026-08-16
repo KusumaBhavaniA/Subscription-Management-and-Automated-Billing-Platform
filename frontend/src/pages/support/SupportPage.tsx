@@ -5,16 +5,13 @@ import {
   Search,
   MessageSquare,
   Send,
-  Paperclip,
-  CheckCircle2,
-  Clock,
-  XCircle,
   User,
-  Shield,
   ArrowLeft,
   ExternalLink,
-  ChevronRight,
-  Filter,
+  AlertCircle,
+  CheckCircle2,
+  ShieldCheck,
+  RefreshCw,
 } from 'lucide-react';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
@@ -22,6 +19,7 @@ import { Badge } from '../../components/common/Badge';
 import { Input } from '../../components/common/Input';
 import { Select } from '../../components/common/Select';
 import { Modal } from '../../components/common/Modal';
+import { Toast } from '../../components/common/Toast';
 import { useAuth } from '../../hooks/useAuth';
 import {
   Ticket,
@@ -37,11 +35,22 @@ import { Customer } from '../../types/customer';
 export const SupportPage: React.FC = () => {
   const { user } = useAuth();
   const isAdmin = user?.role === 'Admin';
+  const isCustomerSuspended = !isAdmin && (user?.accountStatus === 'SUSPENDED' || user?.status === 'Suspended');
 
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [activeTab, setActiveTab] = useState<'All' | 'Open' | 'Resolved' | 'Cancelled'>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
+
+  // Dedicated Restoration Request State
+  const [restorationMessage, setRestorationMessage] = useState('');
+  const [isSubmittingRestoration, setIsSubmittingRestoration] = useState(false);
+  const [restorationNotice, setRestorationNotice] = useState<string | null>(null);
+
+  // Toast State
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastType, setToastType] = useState<'success' | 'error'>('success');
+  const [showToast, setShowToast] = useState(false);
 
   // Create Ticket Modal State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -50,18 +59,18 @@ export const SupportPage: React.FC = () => {
   const [subject, setSubject] = useState('');
   const [initialMessage, setInitialMessage] = useState('');
 
-  // Category Specific Dynamic Fields (Step 11)
+  // Dynamic Fields
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [transactionId, setTransactionId] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
   const [reason, setReason] = useState('');
 
-  // Chat State (Step 13)
+  // Chat State
   const [replyText, setReplyText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Admin View Customer Modal (Step 14)
+  // Admin View Customer Modal
   const [inspectCustomer, setInspectCustomer] = useState<Customer | null>(null);
 
   const loadTickets = async () => {
@@ -81,7 +90,6 @@ export const SupportPage: React.FC = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [selectedTicket?.messages]);
 
-  // Update subcategory options when category changes
   useEffect(() => {
     const available = SUPPORT_CATEGORIES[category] || [];
     if (available.length > 0) {
@@ -89,11 +97,68 @@ export const SupportPage: React.FC = () => {
     }
   }, [category]);
 
+  const handleRestorationSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!restorationMessage.trim()) return;
+
+    setIsSubmittingRestoration(true);
+    setRestorationNotice(null);
+    try {
+      const created = await ticketApi.createTicket({
+        customerId: user?.customerId || `CUS-${Date.now()}`,
+        customerName: user?.fullName || 'Valued Customer',
+        customerEmail: user?.email || 'customer@example.com',
+        category: 'Account Suspension',
+        subcategory: 'Request to Restore Suspended Account',
+        subject: 'Request to Restore Suspended Account',
+        initialMessage: restorationMessage.trim(),
+        dynamicFields: {
+          'Category': 'Account Suspension',
+          'Subject': 'Request to Restore Suspended Account',
+          'Account Status': 'SUSPENDED',
+        },
+      });
+
+      await loadTickets();
+      setSelectedTicket(created);
+      setRestorationNotice('Your restoration request has been submitted successfully.');
+      setRestorationMessage('');
+      setToastMessage('Your restoration request has been submitted successfully.');
+      setToastType('success');
+      setShowToast(true);
+    } catch (err: any) {
+      console.error(err);
+      setToastMessage('Failed to submit restoration request.');
+      setToastType('error');
+      setShowToast(true);
+    } finally {
+      setIsSubmittingRestoration(false);
+    }
+  };
+
+  const handleAdminRestoreAccount = async (ticket: Ticket) => {
+    try {
+      await customerApi.restoreCustomer(ticket.customerEmail || ticket.customerId);
+      const updated = await ticketApi.updateStatus(ticket.id, 'Resolved');
+      if (selectedTicket?.id === ticket.id) {
+        setSelectedTicket(updated);
+      }
+      await loadTickets();
+      setToastMessage('Customer account restored successfully.');
+      setToastType('success');
+      setShowToast(true);
+    } catch (err: any) {
+      console.error(err);
+      setToastMessage('Failed to restore customer account.');
+      setToastType('error');
+      setShowToast(true);
+    }
+  };
+
   const handleCreateTicket = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!subject.trim() || !initialMessage.trim()) return;
 
-    // Collect dynamic fields per category (Step 11)
     const dynamicFields: Record<string, string> = {};
     if (subcategory === 'Payment Failed') {
       if (invoiceNumber) dynamicFields['Invoice Number'] = invoiceNumber;
@@ -122,7 +187,6 @@ export const SupportPage: React.FC = () => {
       setSelectedTicket(created);
       setIsCreateModalOpen(false);
 
-      // Reset Form
       setSubject('');
       setInitialMessage('');
       setInvoiceNumber('');
@@ -201,7 +265,6 @@ export const SupportPage: React.FC = () => {
     if (cust) {
       setInspectCustomer(cust);
     } else {
-      // Fallback object for customer modal
       setInspectCustomer({
         id: `cust-${Date.now()}`,
         name: selectedTicket?.customerName || email,
@@ -236,19 +299,23 @@ export const SupportPage: React.FC = () => {
   const getStatusBadge = (status: TicketStatus) => {
     switch (status) {
       case 'Open':
-        return <Badge variant="warning">Open</Badge>;
+        return <Badge variant="warning">OPEN</Badge>;
       case 'In Progress':
-        return <Badge variant="brand">In Progress</Badge>;
+        return <Badge variant="brand">IN PROGRESS</Badge>;
       case 'Waiting for Customer':
-        return <Badge variant="info">Waiting for Customer</Badge>;
+        return <Badge variant="info">WAITING FOR CUSTOMER</Badge>;
       case 'Resolved':
-        return <Badge variant="success">Resolved</Badge>;
+        return <Badge variant="success">RESOLVED</Badge>;
       case 'Closed':
-        return <Badge variant="neutral">Closed</Badge>;
+        return <Badge variant="neutral">CLOSED</Badge>;
       case 'Cancelled':
-        return <Badge variant="neutral">Cancelled</Badge>;
+        return <Badge variant="neutral">CANCELLED</Badge>;
     }
   };
+
+  const hasRestorationTicket = tickets.some(
+    (t) => t.category === 'Account Suspension' || t.subject.toLowerCase().includes('restore')
+  );
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
@@ -261,7 +328,7 @@ export const SupportPage: React.FC = () => {
           </h1>
           <p className="text-xs text-secondaryText mt-1">
             {isAdmin
-              ? 'Manage customer inquiries, assign tickets, and communicate directly with customers.'
+              ? 'Manage customer inquiries, review restoration requests, and communicate with customers.'
               : 'Submit support requests, track resolution progress, and chat with technical specialists.'}
           </p>
         </div>
@@ -278,9 +345,88 @@ export const SupportPage: React.FC = () => {
         )}
       </div>
 
+      {/* DEDICATED SUPPORT SECTION FOR SUSPENDED CUSTOMERS */}
+      {isCustomerSuspended && (
+        <Card className="p-6 bg-amber-500/10 dark:bg-amber-950/40 border border-amber-500/30 text-amber-950 dark:text-amber-100 shadow-md space-y-4">
+          <div className="flex items-start gap-3.5">
+            <div className="p-3 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 shrink-0">
+              <AlertCircle className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-base font-extrabold text-heading">Request Account Restoration</h2>
+              <p className="text-xs text-secondaryText font-medium mt-0.5">
+                Your account is currently suspended. Submit a support ticket to request restoration.
+              </p>
+            </div>
+          </div>
+
+          {restorationNotice && (
+            <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-extrabold flex items-center gap-2">
+              <CheckCircle2 className="w-4.5 h-4.5 text-emerald-500 shrink-0" />
+              <span>{restorationNotice}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleRestorationSubmit} className="space-y-4 pt-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div>
+                <label className="block text-[11px] font-bold text-mutedText uppercase mb-1">Subject</label>
+                <input
+                  type="text"
+                  readOnly
+                  value="Request to Restore Suspended Account"
+                  className="w-full px-3.5 py-2.5 bg-card border border-border rounded-xl font-extrabold text-heading text-xs cursor-not-allowed"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-mutedText uppercase mb-1">Category</label>
+                <input
+                  type="text"
+                  readOnly
+                  value="Account Suspension"
+                  className="w-full px-3.5 py-2.5 bg-card border border-border rounded-xl font-extrabold text-heading text-xs cursor-not-allowed"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-mutedText uppercase mb-1">Message *</label>
+              <textarea
+                rows={3}
+                required
+                placeholder="Explain your account restoration request details..."
+                value={restorationMessage}
+                onChange={(e) => setRestorationMessage(e.target.value)}
+                className="w-full p-3 bg-card border border-border rounded-xl text-xs text-primaryText font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/30 resize-y"
+              />
+            </div>
+
+            <div className="flex justify-end">
+              <Button
+                type="submit"
+                variant="primary"
+                isLoading={isSubmittingRestoration}
+                className="bg-amber-600 hover:bg-amber-700 text-white border-none shadow-sm cursor-pointer"
+              >
+                Submit Restoration Request
+              </Button>
+            </div>
+          </form>
+        </Card>
+      )}
+
+      {/* RESTORED ACCOUNT BANNER FOR FORMERLY SUSPENDED CUSTOMER */}
+      {!isAdmin && !isCustomerSuspended && hasRestorationTicket && (
+        <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-extrabold flex items-center gap-3">
+          <ShieldCheck className="w-5 h-5 text-emerald-500 shrink-0" />
+          <span>Your account has been restored.</span>
+        </div>
+      )}
+
       {/* TICKET DIRECTORY & CHAT LAYOUT */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* LEFT COLUMN: TICKETS LIST (STEP 12) */}
+        {/* LEFT COLUMN: TICKETS LIST */}
         <div className={`lg:col-span-5 space-y-4 ${selectedTicket ? 'hidden lg:block' : 'block'}`}>
           <Card className="p-4 space-y-4">
             {/* Search & Tabs */}
@@ -315,11 +461,13 @@ export const SupportPage: React.FC = () => {
             <div className="space-y-2 max-h-[580px] overflow-y-auto pr-1 divide-y divide-border/60">
               {filteredTickets.length === 0 ? (
                 <div className="p-8 text-center text-xs font-medium text-mutedText">
-                  No tickets found.
+                  No support tickets found.
                 </div>
               ) : (
                 filteredTickets.map((t) => {
                   const isSelected = selectedTicket?.id === t.id;
+                  const isSuspensionTicket = t.category === 'Account Suspension' || t.subject.toLowerCase().includes('restore');
+
                   return (
                     <div
                       key={t.id}
@@ -348,9 +496,29 @@ export const SupportPage: React.FC = () => {
                         </span>
                         <div className="flex items-center gap-1 text-mutedText">
                           <User className="w-3 h-3 text-mutedText" />
-                          <span className="truncate max-w-[100px]">{t.assignedAgent || 'Unassigned'}</span>
+                          <span className="truncate max-w-[100px]">{t.customerName}</span>
                         </div>
                       </div>
+
+                      {/* Admin Quick Action Controls */}
+                      {isAdmin && isSuspensionTicket && (
+                        <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border/40" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => setSelectedTicket(t)}
+                            className="px-2.5 py-1 bg-secondary text-primary font-extrabold text-[11px] rounded-lg hover:bg-secondary/80 transition-colors cursor-pointer"
+                          >
+                            Review Request
+                          </button>
+                          {t.status !== 'Resolved' && (
+                            <button
+                              onClick={() => handleAdminRestoreAccount(t)}
+                              className="px-2.5 py-1 bg-emerald-600 text-white font-extrabold text-[11px] rounded-lg hover:bg-emerald-700 transition-colors cursor-pointer"
+                            >
+                              Restore Account
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })
@@ -359,7 +527,7 @@ export const SupportPage: React.FC = () => {
           </Card>
         </div>
 
-        {/* RIGHT COLUMN: CHAT & DETAILS (STEP 13 & STEP 14) */}
+        {/* RIGHT COLUMN: CHAT & DETAILS */}
         <div className={`lg:col-span-7 ${!selectedTicket ? 'hidden lg:block' : 'block'}`}>
           {selectedTicket ? (
             <Card className="flex flex-col h-[680px] p-0 overflow-hidden border border-border">
@@ -388,6 +556,18 @@ export const SupportPage: React.FC = () => {
                 <div className="flex items-center gap-2">
                   {isAdmin ? (
                     <>
+                      {(selectedTicket.category === 'Account Suspension' || selectedTicket.subject.toLowerCase().includes('restore')) && selectedTicket.status !== 'Resolved' && (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => handleAdminRestoreAccount(selectedTicket)}
+                          leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white border-none shadow-sm cursor-pointer"
+                        >
+                          Restore Account
+                        </Button>
+                      )}
+
                       <Button
                         variant="outline"
                         size="sm"
@@ -459,7 +639,7 @@ export const SupportPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Dynamic Fields Banner (Step 11) */}
+              {/* Dynamic Fields Banner */}
               {selectedTicket.dynamicFields && Object.keys(selectedTicket.dynamicFields).length > 0 && (
                 <div className="p-3 bg-secondary/80 border-b border-border flex flex-wrap items-center gap-4 text-xs font-semibold">
                   <span className="text-mutedText font-bold uppercase text-[10px] tracking-wider">Ticket Info:</span>
@@ -472,7 +652,7 @@ export const SupportPage: React.FC = () => {
                 </div>
               )}
 
-              {/* Messages Thread (Step 13) */}
+              {/* Messages Thread */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-app-bg">
                 {selectedTicket.messages.map((msg) => {
                   const isUser = msg.senderRole === 'Customer';
@@ -609,6 +789,13 @@ export const SupportPage: React.FC = () => {
             </div>
           )}
 
+          {category === 'Account Suspension' && (
+            <div className="p-3.5 rounded-xl bg-secondary/80 border border-border space-y-3">
+              <span className="text-[11px] font-bold text-primary uppercase tracking-wider block">Account Suspension Details</span>
+              <Input label="Subject" value="Request to Restore Suspended Account" disabled />
+            </div>
+          )}
+
           {category === 'Technical' && (
             <div className="p-3.5 rounded-xl bg-secondary/80 border border-border space-y-3">
               <span className="text-[11px] font-bold text-primary uppercase tracking-wider block">Technical Environment</span>
@@ -637,13 +824,6 @@ export const SupportPage: React.FC = () => {
             />
           </div>
 
-          {/* Attachments Section (Future-Ready) */}
-          <div className="p-3 rounded-xl border border-dashed border-border text-center bg-secondary/40 space-y-1">
-            <span className="text-[11px] font-bold text-secondaryText block">Attach Screenshots / Diagnostics (Future Ready)</span>
-            <p className="text-[10px] text-mutedText">Drag & drop files or click to attach logs (PNG, JPG, PDF up to 10MB)</p>
-          </div>
-
-          {/* Sticky Footer */}
           <div className="flex justify-end gap-3 pt-4 border-t border-border sticky bottom-0 bg-card z-10">
             <Button variant="outline" type="button" onClick={() => setIsCreateModalOpen(false)}>Cancel</Button>
             <Button variant="primary" type="submit">Submit Ticket</Button>
@@ -651,7 +831,7 @@ export const SupportPage: React.FC = () => {
         </form>
       </Modal>
 
-      {/* ADMIN INSPECT CUSTOMER PROFILE MODAL (STEP 14) */}
+      {/* ADMIN INSPECT CUSTOMER PROFILE MODAL */}
       {inspectCustomer && (
         <CustomerDetailsModal
           customer={inspectCustomer}
@@ -659,6 +839,14 @@ export const SupportPage: React.FC = () => {
           onClose={() => setInspectCustomer(null)}
         />
       )}
+
+      {/* TOAST NOTIFICATION */}
+      <Toast
+        isVisible={showToast}
+        message={toastMessage || ''}
+        type={toastType}
+        onClose={() => setShowToast(false)}
+      />
     </div>
   );
 };

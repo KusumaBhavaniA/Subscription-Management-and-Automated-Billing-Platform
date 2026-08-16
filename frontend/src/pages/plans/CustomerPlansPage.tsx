@@ -29,15 +29,20 @@ import { planApi } from '../../services/api/planApi';
 import { subscriptionManagementApi } from '../../services/api/subscriptionManagementApi';
 import { useAuth } from '../../hooks/useAuth';
 
+import { SuspendedActionModal } from '../../components/common/SuspendedActionModal';
+
 type SortOption = 'popular' | 'price-asc' | 'price-desc';
 
 export const CustomerPlansPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  const isSuspended = user?.accountStatus === 'SUSPENDED' || user?.status === 'Suspended';
+  const [isSuspendedModalOpen, setIsSuspendedModalOpen] = useState(false);
+
   const [plans, setPlans] = useState<Plan[]>([]);
   const [activeSub, setActiveSub] = useState<Subscription | null>(null);
-  const [billingCycle, setBillingCycle] = useState<'Monthly' | 'Yearly'>('Monthly');
+  const [billingCycle, setBillingCycle] = useState<'Monthly' | 'Quarterly' | 'Yearly'>('Monthly');
 
   // Search, Filter & Sort
   const [searchQuery, setSearchQuery] = useState('');
@@ -45,7 +50,7 @@ export const CustomerPlansPage: React.FC = () => {
 
   // Review & Purchase Modal
   const [selectedPlanForCheckout, setSelectedPlanForCheckout] = useState<Plan | null>(null);
-  const [checkoutCycle, setCheckoutCycle] = useState<'Monthly' | 'Yearly'>('Monthly');
+  const [checkoutCycle, setCheckoutCycle] = useState<'Monthly' | 'Quarterly' | 'Yearly'>('Monthly');
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -74,6 +79,12 @@ export const CustomerPlansPage: React.FC = () => {
     loadData();
   }, [user]);
 
+  const getPlanPriceForCycle = (plan: Plan, cycle: 'Monthly' | 'Quarterly' | 'Yearly') => {
+    if (cycle === 'Monthly') return plan.priceMonthly;
+    if (cycle === 'Quarterly') return plan.priceQuarterly || Math.round(plan.priceMonthly * 3 * 0.9);
+    return plan.priceYearly;
+  };
+
   // Filter & Sort Logic
   const filteredPlans = plans
     .filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.description.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -81,8 +92,8 @@ export const CustomerPlansPage: React.FC = () => {
       if (sortBy === 'popular') {
         return (b.isPopular ? 1 : 0) - (a.isPopular ? 1 : 0);
       }
-      const priceA = billingCycle === 'Monthly' ? a.priceMonthly : a.priceYearly;
-      const priceB = billingCycle === 'Monthly' ? b.priceMonthly : b.priceYearly;
+      const priceA = getPlanPriceForCycle(a, billingCycle);
+      const priceB = getPlanPriceForCycle(b, billingCycle);
       if (sortBy === 'price-asc') return priceA - priceB;
       if (sortBy === 'price-desc') return priceB - priceA;
       return 0;
@@ -95,63 +106,64 @@ export const CustomerPlansPage: React.FC = () => {
     return 1;
   };
 
-  const getActionButtonText = (targetPlan: Plan) => {
+  const getActionButtonText = (targetPlan: Plan, currentCycle: 'Monthly' | 'Quarterly' | 'Yearly') => {
+    if (isSuspended) {
+      return { text: 'Subscription Actions Unavailable', variant: 'outline' as const, disabled: false, isCurrent: false };
+    }
+
     if (!activeSub || activeSub.planName === 'None' || !activeSub.status) {
-      return { text: 'Subscribe', variant: 'primary' as const };
+      return { text: 'Subscribe', variant: 'primary' as const, disabled: false, isCurrent: false };
     }
 
     if (activeSub.status === 'Cancelled') {
-      return { text: 'Subscribe Again', variant: 'primary' as const };
+      return { text: 'Subscribe Again', variant: 'primary' as const, disabled: false, isCurrent: false };
     }
 
     if (activeSub.status === 'Expired') {
-      return { text: 'Renew', variant: 'primary' as const };
+      return { text: 'Renew', variant: 'primary' as const, disabled: false, isCurrent: false };
     }
 
-    if (activeSub.planName === targetPlan.name && activeSub.status === 'Active') {
-      return { text: 'Current Active Plan', variant: 'outline' as const, disabled: true };
+    // Active Subscription matching
+    const isPlanMatch = activeSub.planName === targetPlan.name || (activeSub as any).planId === targetPlan.id;
+    const isCycleMatch = activeSub.billingCycle === currentCycle;
+
+    if (isPlanMatch) {
+      if (isCycleMatch) {
+        return { text: 'Current Active Plan', variant: 'outline' as const, disabled: true, isCurrent: true };
+      } else {
+        return { text: `Upgrade to ${currentCycle}`, variant: 'primary' as const, disabled: false, isCurrent: false };
+      }
     }
 
     const currentLevel = getPlanTierLevel(activeSub.planName);
     const targetLevel = getPlanTierLevel(targetPlan.name);
 
     if (targetLevel > currentLevel) {
-      return { text: 'Upgrade', variant: 'primary' as const };
+      return { text: `Upgrade to ${targetPlan.name}`, variant: 'primary' as const, disabled: false, isCurrent: false };
     } else {
-      return { text: 'Downgrade', variant: 'outline' as const };
+      return { text: `Downgrade to ${targetPlan.name}`, variant: 'outline' as const, disabled: false, isCurrent: false };
     }
   };
 
   const handleOpenCheckout = (plan: Plan) => {
+    if (isSuspended) {
+      setIsSuspendedModalOpen(true);
+      return;
+    }
     setSelectedPlanForCheckout(plan);
     setCheckoutCycle(billingCycle);
     setIsCheckoutModalOpen(true);
   };
 
-  const handleConfirmPurchase = async () => {
-    if (!selectedPlanForCheckout || !user) return;
-    setIsSubmitting(true);
-    try {
-      await subscriptionManagementApi.assignSubscription(
-        user.email,
-        user.fullName,
-        selectedPlanForCheckout.name,
-        checkoutCycle
-      );
-
-      await loadData();
-      setIsCheckoutModalOpen(false);
-      setSuccessMessage(`Successfully subscribed to ${selectedPlanForCheckout.name}!`);
-
-      setTimeout(() => {
-        setSuccessMessage(null);
-        navigate('/customer/dashboard');
-      }, 1500);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsSubmitting(false);
-    }
+  const handleConfirmPurchase = () => {
+    if (!selectedPlanForCheckout) return;
+    setIsCheckoutModalOpen(false);
+    navigate('/customer/payment', {
+      state: {
+        plan: selectedPlanForCheckout,
+        billingCycle: checkoutCycle,
+      },
+    });
   };
 
   return (
@@ -179,7 +191,7 @@ export const CustomerPlansPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Monthly / Yearly Billing Toggle */}
+          {/* Monthly / Quarterly / Yearly Billing Toggle */}
           <div className="flex items-center gap-1.5 bg-secondary p-1 rounded-xl border border-border">
             <button
               onClick={() => setBillingCycle('Monthly')}
@@ -188,6 +200,14 @@ export const CustomerPlansPage: React.FC = () => {
               }`}
             >
               Monthly
+            </button>
+            <button
+              onClick={() => setBillingCycle('Quarterly')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+                billingCycle === 'Quarterly' ? 'bg-primary text-white shadow-sm' : 'text-secondaryText hover:text-primaryText'
+              }`}
+            >
+              Quarterly <span className="text-[10px] text-emerald-500 font-semibold">(Save 10%)</span>
             </button>
             <button
               onClick={() => setBillingCycle('Yearly')}
@@ -200,6 +220,26 @@ export const CustomerPlansPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* SUSPENSION WARNING BANNER */}
+      {isSuspended && (
+        <div className="p-4 rounded-2xl bg-amber-500/10 dark:bg-amber-950/40 border border-amber-500/30 text-amber-900 dark:text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span className="text-xs font-semibold">
+              Subscription actions are unavailable while your account is suspended. Your account is currently suspended. Subscription purchases and payments are disabled. Please contact Support to request restoration.
+            </span>
+          </div>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => navigate('/customer/support')}
+            className="bg-amber-600 hover:bg-amber-700 text-white border-none shrink-0"
+          >
+            Contact Support
+          </Button>
+        </div>
+      )}
 
       {/* Search, Filter & Sort Controls Bar */}
       <Card className="p-4 flex flex-col md:flex-row items-center justify-between gap-4">
@@ -250,9 +290,10 @@ export const CustomerPlansPage: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {filteredPlans.map((plan) => {
-            const isCurrent = activeSub?.planName === plan.name && activeSub?.status === 'Active';
-            const price = billingCycle === 'Monthly' ? plan.priceMonthly : plan.priceYearly;
-            const actionInfo = getActionButtonText(plan);
+            const price = getPlanPriceForCycle(plan, billingCycle);
+            const priceSuffix = billingCycle === 'Monthly' ? '/mo' : billingCycle === 'Quarterly' ? '/quarter' : '/yr';
+            const actionInfo = getActionButtonText(plan, billingCycle);
+            const isCurrent = actionInfo.isCurrent;
 
             return (
               <Card
@@ -287,9 +328,17 @@ export const CustomerPlansPage: React.FC = () => {
 
                   {/* Price Section */}
                   <div className="pt-3 border-t border-border space-y-1">
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-3xl font-black text-heading">{formatCurrency(price)}</span>
-                      <span className="text-xs text-mutedText font-semibold">/{billingCycle === 'Monthly' ? 'mo' : 'yr'}</span>
+                    <div className="flex items-baseline justify-between">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-3xl font-black text-heading">{formatCurrency(price)}</span>
+                        <span className="text-xs text-mutedText font-semibold">{priceSuffix}</span>
+                      </div>
+                      {billingCycle === 'Quarterly' && (
+                        <Badge variant="success" size="sm">Save 10%</Badge>
+                      )}
+                      {billingCycle === 'Yearly' && (
+                        <Badge variant="success" size="sm">Save 20%</Badge>
+                      )}
                     </div>
                   </div>
 
@@ -370,7 +419,7 @@ export const CustomerPlansPage: React.FC = () => {
             {/* Cycle Selector in Checkout */}
             <div className="space-y-2">
               <label className="block text-xs font-bold text-secondaryText uppercase tracking-wider">Billing Frequency</label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => setCheckoutCycle('Monthly')}
@@ -378,8 +427,23 @@ export const CustomerPlansPage: React.FC = () => {
                     checkoutCycle === 'Monthly' ? 'border-primary bg-primary/10 font-bold' : 'border-border bg-card'
                   }`}
                 >
-                  <span className="block font-bold text-heading text-xs">Monthly Billing</span>
-                  <span className="text-xs text-emerald-600 font-extrabold">{formatCurrency(selectedPlanForCheckout.priceMonthly)}/mo</span>
+                  <span className="block font-bold text-heading text-xs">Monthly</span>
+                  <span className="text-[11px] text-emerald-600 font-extrabold">
+                    {formatCurrency(selectedPlanForCheckout.priceMonthly)}/mo
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setCheckoutCycle('Quarterly')}
+                  className={`p-3 rounded-xl border text-left cursor-pointer transition-all ${
+                    checkoutCycle === 'Quarterly' ? 'border-primary bg-primary/10 font-bold' : 'border-border bg-card'
+                  }`}
+                >
+                  <span className="block font-bold text-heading text-xs">Quarterly <span className="text-[9px] text-emerald-600">(Save 10%)</span></span>
+                  <span className="text-[11px] text-emerald-600 font-extrabold">
+                    {formatCurrency(selectedPlanForCheckout.priceQuarterly || Math.round(selectedPlanForCheckout.priceMonthly * 3 * 0.9))}/qtr
+                  </span>
                 </button>
 
                 <button
@@ -389,8 +453,10 @@ export const CustomerPlansPage: React.FC = () => {
                     checkoutCycle === 'Yearly' ? 'border-primary bg-primary/10 font-bold' : 'border-border bg-card'
                   }`}
                 >
-                  <span className="block font-bold text-heading text-xs">Yearly Billing (Save 20%)</span>
-                  <span className="text-xs text-emerald-600 font-extrabold">{formatCurrency(selectedPlanForCheckout.priceYearly)}/yr</span>
+                  <span className="block font-bold text-heading text-xs">Yearly <span className="text-[9px] text-emerald-600">(Save 20%)</span></span>
+                  <span className="text-[11px] text-emerald-600 font-extrabold">
+                    {formatCurrency(selectedPlanForCheckout.priceYearly)}/yr
+                  </span>
                 </button>
               </div>
             </div>
@@ -399,7 +465,7 @@ export const CustomerPlansPage: React.FC = () => {
             <div className="p-4 rounded-xl border border-border bg-card space-y-2">
               <span className="text-[10px] font-bold text-mutedText uppercase tracking-wider block">Price Breakdown</span>
               {(() => {
-                const subtotal = checkoutCycle === 'Monthly' ? selectedPlanForCheckout.priceMonthly : selectedPlanForCheckout.priceYearly;
+                const subtotal = getPlanPriceForCycle(selectedPlanForCheckout, checkoutCycle);
                 const tax = Math.round(subtotal * 0.18);
                 const total = subtotal + tax;
                 return (
@@ -421,17 +487,42 @@ export const CustomerPlansPage: React.FC = () => {
               })()}
             </div>
 
-            <div className="flex justify-end gap-3 pt-3 border-t border-border">
-              <Button variant="outline" onClick={() => setIsCheckoutModalOpen(false)} disabled={isSubmitting}>
-                Cancel
-              </Button>
-              <Button variant="primary" isLoading={isSubmitting} onClick={handleConfirmPurchase} leftIcon={<Zap className="w-4 h-4" />}>
-                Confirm & Activate Subscription
-              </Button>
-            </div>
+            {/* Modal Action Info Message & Buttons */}
+            {(() => {
+              const modalActionInfo = getActionButtonText(selectedPlanForCheckout, checkoutCycle);
+              return (
+                <>
+                  {modalActionInfo.isCurrent && (
+                    <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-semibold flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>You are already subscribed to {selectedPlanForCheckout.name} with {checkoutCycle} billing.</span>
+                    </div>
+                  )}
+                  <div className="flex justify-end gap-3 pt-3 border-t border-border">
+                    <Button variant="outline" onClick={() => setIsCheckoutModalOpen(false)} disabled={isSubmitting}>
+                      Cancel
+                    </Button>
+                    <Button
+                      variant={modalActionInfo.isCurrent ? 'outline' : 'primary'}
+                      disabled={modalActionInfo.isCurrent || isSubmitting}
+                      isLoading={isSubmitting}
+                      onClick={handleConfirmPurchase}
+                      leftIcon={!modalActionInfo.isCurrent ? <Zap className="w-4 h-4" /> : undefined}
+                    >
+                      {modalActionInfo.isCurrent ? 'Current Active Plan' : 'Confirm & Activate Subscription'}
+                    </Button>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </Modal>
       )}
+
+      <SuspendedActionModal
+        isOpen={isSuspendedModalOpen}
+        onClose={() => setIsSuspendedModalOpen(false)}
+      />
     </div>
   );
 };

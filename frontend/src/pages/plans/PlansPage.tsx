@@ -30,7 +30,7 @@ export const PlansPage: React.FC = () => {
   const isAdmin = user?.role === 'Admin';
 
   const [plans, setPlans] = useState<Plan[]>([]);
-  const [billingCycle, setBillingCycle] = useState<'Monthly' | 'Yearly'>('Monthly');
+  const [billingCycle, setBillingCycle] = useState<'Monthly' | 'Quarterly' | 'Yearly'>('Monthly');
 
   // Modals
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -41,6 +41,7 @@ export const PlansPage: React.FC = () => {
   const [planName, setPlanName] = useState('');
   const [description, setDescription] = useState('');
   const [priceMonthly, setPriceMonthly] = useState('');
+  const [priceQuarterly, setPriceQuarterly] = useState('');
   const [priceYearly, setPriceYearly] = useState('');
   const [maxCustomers, setMaxCustomers] = useState('');
   const [storage, setStorage] = useState('');
@@ -50,6 +51,7 @@ export const PlansPage: React.FC = () => {
   const [isPopular, setIsPopular] = useState(false);
   const [isEnabled, setIsEnabled] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const loadPlans = async () => {
     const list = await planApi.getPlans();
@@ -65,6 +67,7 @@ export const PlansPage: React.FC = () => {
     setPlanName('');
     setDescription('');
     setPriceMonthly('');
+    setPriceQuarterly('');
     setPriceYearly('');
     setMaxCustomers('1,000 Customers');
     setStorage('50 GB Cloud Storage');
@@ -73,6 +76,7 @@ export const PlansPage: React.FC = () => {
     setFeaturesStr('Automated Invoicing & Tax\nStandard Webhook Triggers');
     setIsPopular(false);
     setIsEnabled(true);
+    setValidationError(null);
     setIsModalOpen(true);
   };
 
@@ -81,6 +85,7 @@ export const PlansPage: React.FC = () => {
     setPlanName(plan.name);
     setDescription(plan.description);
     setPriceMonthly(plan.priceMonthly.toString());
+    setPriceQuarterly(plan.priceQuarterly ? plan.priceQuarterly.toString() : Math.round(plan.priceMonthly * 3 * 0.9).toString());
     setPriceYearly(plan.priceYearly.toString());
     setMaxCustomers(plan.maxCustomers || '1,000 Customers');
     setStorage(plan.storage || '50 GB Cloud Storage');
@@ -89,12 +94,37 @@ export const PlansPage: React.FC = () => {
     setFeaturesStr(plan.features.join('\n'));
     setIsPopular(plan.isPopular || false);
     setIsEnabled(plan.isEnabled !== undefined ? plan.isEnabled : true);
+    setValidationError(null);
     setIsModalOpen(true);
   };
 
   const handleSavePlan = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!planName.trim() || !priceMonthly || !priceYearly) return;
+    setValidationError(null);
+    if (!planName.trim() || !priceMonthly || !priceQuarterly || !priceYearly) {
+      setValidationError('Please fill in all required price fields.');
+      return;
+    }
+
+    const pMonthly = Number(priceMonthly);
+    const pQuarterly = Number(priceQuarterly);
+    const pYearly = Number(priceYearly);
+
+    // Validation rules
+    if (pQuarterly <= pMonthly) {
+      setValidationError(`Quarterly price (₹${pQuarterly}) must be greater than Monthly price (₹${pMonthly}).`);
+      return;
+    }
+
+    if (pQuarterly >= pMonthly * 3) {
+      setValidationError(`Quarterly price (₹${pQuarterly}) must be less than 3 × Monthly price (₹${pMonthly * 3}).`);
+      return;
+    }
+
+    if (pYearly >= pMonthly * 12) {
+      setValidationError(`Yearly price (₹${pYearly}) must be less than 12 × Monthly price (₹${pMonthly * 12}).`);
+      return;
+    }
 
     setIsLoading(true);
     const featuresList = featuresStr
@@ -107,8 +137,9 @@ export const PlansPage: React.FC = () => {
         await planApi.updatePlan(editingPlan.id, {
           name: planName,
           description,
-          priceMonthly: Number(priceMonthly),
-          priceYearly: Number(priceYearly),
+          priceMonthly: pMonthly,
+          priceQuarterly: pQuarterly,
+          priceYearly: pYearly,
           maxCustomers,
           storage,
           apiAccess,
@@ -121,8 +152,9 @@ export const PlansPage: React.FC = () => {
         await planApi.createPlan({
           name: planName,
           description,
-          priceMonthly: Number(priceMonthly),
-          priceYearly: Number(priceYearly),
+          priceMonthly: pMonthly,
+          priceQuarterly: pQuarterly,
+          priceYearly: pYearly,
           maxCustomers,
           storage,
           apiAccess,
@@ -177,6 +209,7 @@ export const PlansPage: React.FC = () => {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 bg-secondary p-1 rounded-xl border border-border">
             <button
+              type="button"
               onClick={() => setBillingCycle('Monthly')}
               className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
                 billingCycle === 'Monthly' ? 'bg-primary text-white shadow-sm' : 'text-secondaryText hover:text-primaryText'
@@ -185,6 +218,16 @@ export const PlansPage: React.FC = () => {
               Monthly
             </button>
             <button
+              type="button"
+              onClick={() => setBillingCycle('Quarterly')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+                billingCycle === 'Quarterly' ? 'bg-primary text-white shadow-sm' : 'text-secondaryText hover:text-primaryText'
+              }`}
+            >
+              Quarterly <span className="text-[10px] text-emerald-500 font-semibold">(Save 10%)</span>
+            </button>
+            <button
+              type="button"
               onClick={() => setBillingCycle('Yearly')}
               className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
                 billingCycle === 'Yearly' ? 'bg-primary text-white shadow-sm' : 'text-secondaryText hover:text-primaryText'
@@ -210,7 +253,19 @@ export const PlansPage: React.FC = () => {
       {/* Plan Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {plans.map((plan) => {
-          const price = billingCycle === 'Monthly' ? plan.priceMonthly : plan.priceYearly;
+          const price =
+            billingCycle === 'Monthly'
+              ? plan.priceMonthly
+              : billingCycle === 'Quarterly'
+              ? plan.priceQuarterly || Math.round(plan.priceMonthly * 3 * 0.9)
+              : plan.priceYearly;
+
+          const priceUnit =
+            billingCycle === 'Monthly' ? '/month' : billingCycle === 'Quarterly' ? '/quarter' : '/year';
+
+          const savingsText =
+            billingCycle === 'Quarterly' ? 'Save 10%' : billingCycle === 'Yearly' ? 'Save 20%' : null;
+
           const estimatedMRR = plan.priceMonthly * (plan.activeSubscribers || 0);
           const activeState = plan.isEnabled !== false;
 
@@ -282,9 +337,14 @@ export const PlansPage: React.FC = () => {
 
                 {/* Price & MRR Section */}
                 <div className="pt-3 border-t border-border space-y-2">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-black text-heading">{formatCurrency(price)}</span>
-                    <span className="text-xs text-mutedText font-semibold">/{billingCycle === 'Monthly' ? 'mo' : 'yr'}</span>
+                  <div className="flex items-baseline justify-between">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-3xl font-black text-heading">{formatCurrency(price)}</span>
+                      <span className="text-xs text-mutedText font-semibold">{priceUnit}</span>
+                    </div>
+                    {savingsText && (
+                      <Badge variant="success" size="sm">{savingsText}</Badge>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/60 text-[11px]">
@@ -378,13 +438,32 @@ export const PlansPage: React.FC = () => {
             <span className="text-[11px] font-bold text-primary uppercase tracking-wider block">
               Section 2: Pricing Configuration
             </span>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <p className="text-[11px] text-secondaryText italic font-medium">
+              Recommended: Quarterly should provide approximately 10% savings compared to three monthly payments.
+            </p>
+
+            {validationError && (
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs font-semibold flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{validationError}</span>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Input
                 label="Monthly Price (₹) *"
                 type="number"
                 placeholder="4999"
                 value={priceMonthly}
                 onChange={(e) => setPriceMonthly(e.target.value)}
+                required
+              />
+              <Input
+                label="Quarterly Price (₹) *"
+                type="number"
+                placeholder="13499"
+                value={priceQuarterly}
+                onChange={(e) => setPriceQuarterly(e.target.value)}
                 required
               />
               <Input

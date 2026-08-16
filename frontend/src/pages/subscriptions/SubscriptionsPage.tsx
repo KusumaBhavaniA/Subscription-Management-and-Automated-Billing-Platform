@@ -23,9 +23,16 @@ import { customerApi } from '../../services/api/customerApi';
 import { Customer } from '../../types/customer';
 import { useAuth } from '../../hooks/useAuth';
 
+import { useNavigate } from 'react-router-dom';
+import { AlertCircle } from 'lucide-react';
+import { SuspendedActionModal } from '../../components/common/SuspendedActionModal';
+
 export const SubscriptionsPage: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const isAdmin = user?.role === 'Admin';
+  const isSuspended = !isAdmin && (user?.accountStatus === 'SUSPENDED' || user?.status === 'Suspended');
+  const [isSuspendedModalOpen, setIsSuspendedModalOpen] = useState(false);
 
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -94,6 +101,10 @@ export const SubscriptionsPage: React.FC = () => {
   };
 
   const handleUpgrade = async (sub: Subscription) => {
+    if (isSuspended) {
+      setIsSuspendedModalOpen(true);
+      return;
+    }
     setIsLoading(true);
     try {
       await subscriptionManagementApi.upgradeSubscription(sub.id, 'Enterprise Scale');
@@ -112,6 +123,10 @@ export const SubscriptionsPage: React.FC = () => {
   };
 
   const handleDowngrade = async (sub: Subscription) => {
+    if (isSuspended) {
+      setIsSuspendedModalOpen(true);
+      return;
+    }
     setIsLoading(true);
     try {
       await subscriptionManagementApi.downgradeSubscription(sub.id, 'Starter Tier');
@@ -131,6 +146,10 @@ export const SubscriptionsPage: React.FC = () => {
 
   // Open Custom Cancellation Confirmation Modal (No window.confirm!)
   const handleOpenCancelModal = (sub: Subscription) => {
+    if (isSuspended) {
+      setIsSuspendedModalOpen(true);
+      return;
+    }
     setCancelTargetSub(sub);
     setCancelReason('Too Expensive');
     setCustomReasonDetails('');
@@ -158,6 +177,10 @@ export const SubscriptionsPage: React.FC = () => {
   };
 
   const handleRenew = async (sub: Subscription) => {
+    if (isSuspended) {
+      setIsSuspendedModalOpen(true);
+      return;
+    }
     setIsLoading(true);
     try {
       await subscriptionManagementApi.renewSubscription(sub.id);
@@ -224,6 +247,26 @@ export const SubscriptionsPage: React.FC = () => {
           </Button>
         )}
       </div>
+
+      {/* SUSPENSION WARNING BANNER */}
+      {isSuspended && (
+        <div className="p-4 rounded-2xl bg-amber-500/10 dark:bg-amber-950/40 border border-amber-500/30 text-amber-900 dark:text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span className="text-xs font-semibold">
+              Subscription actions are unavailable while your account is suspended. Your account is currently suspended. Subscription purchases and payments are disabled. Please contact Support to request restoration.
+            </span>
+          </div>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => navigate('/customer/support')}
+            className="bg-amber-600 hover:bg-amber-700 text-white border-none shrink-0"
+          >
+            Contact Support
+          </Button>
+        </div>
+      )}
 
       {/* Search & Counter */}
       <Card className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -366,7 +409,8 @@ export const SubscriptionsPage: React.FC = () => {
             onChange={(e) => setSelectedCycle(e.target.value as BillingCycle)}
             options={[
               { value: 'Monthly', label: 'Monthly Auto-Billing' },
-              { value: 'Yearly', label: 'Yearly Auto-Billing (Discounted)' },
+              { value: 'Quarterly', label: 'Quarterly Auto-Billing (Save 10%)' },
+              { value: 'Yearly', label: 'Yearly Auto-Billing (Save 20%)' },
             ]}
           />
 
@@ -490,6 +534,11 @@ export const SubscriptionsPage: React.FC = () => {
         message={toastMessage || ''}
         type={toastType}
         onClose={() => setShowToast(false)}
+      />
+
+      <SuspendedActionModal
+        isOpen={isSuspendedModalOpen}
+        onClose={() => setIsSuspendedModalOpen(false)}
       />
     </div>
   );

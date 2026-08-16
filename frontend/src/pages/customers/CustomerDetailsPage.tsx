@@ -127,11 +127,23 @@ export const CustomerDetailsPage: React.FC = () => {
     );
   }
 
-  const handleStatusChange = async (newStatus: CustomerStatus) => {
+  const handleSuspendCustomer = async () => {
     setIsActionLoading(true);
     try {
-      const updated = await customerApi.updateCustomerStatus(customer.id, newStatus);
-      setCustomer(updated);
+      await customerApi.suspendCustomer(customer.id, 'Suspended by admin from profile view');
+      await loadCustomer();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const handleRestoreCustomer = async () => {
+    setIsActionLoading(true);
+    try {
+      await customerApi.restoreCustomer(customer.id);
+      await loadCustomer();
     } catch (err) {
       console.error(err);
     } finally {
@@ -155,9 +167,7 @@ export const CustomerDetailsPage: React.FC = () => {
   const handleSoftDelete = async () => {
     setIsActionLoading(true);
     try {
-      const list = getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
-      const filtered = list.filter((c) => c.id !== customer.id && c.customerId !== customer.customerId);
-      setItem(STORAGE_KEYS.CUSTOMERS, filtered);
+      await customerApi.softDeleteCustomer(customer.id);
       setIsDeleteModalOpen(false);
       navigate('/admin/customers');
     } catch (err) {
@@ -295,12 +305,12 @@ export const CustomerDetailsPage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            {customer.status === 'Suspended' ? (
+            {customer.accountStatus === 'SUSPENDED' || customer.status === 'Suspended' ? (
               <Button
                 variant="outline"
                 size="sm"
                 isLoading={isActionLoading}
-                onClick={() => handleStatusChange('Verified')}
+                onClick={handleRestoreCustomer}
                 leftIcon={<CheckCircle className="w-3.5 h-3.5 text-emerald-500" />}
               >
                 Restore Account
@@ -310,8 +320,8 @@ export const CustomerDetailsPage: React.FC = () => {
                 variant="outline"
                 size="sm"
                 isLoading={isActionLoading}
-                onClick={() => handleStatusChange('Suspended')}
-                leftIcon={<Ban className="w-3.5 h-3.5 text-rose-500" />}
+                onClick={handleSuspendCustomer}
+                leftIcon={<Ban className="w-3.5 h-3.5 text-amber-500" />}
               >
                 Suspend
               </Button>
