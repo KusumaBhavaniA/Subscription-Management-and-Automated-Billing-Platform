@@ -1,4 +1,5 @@
 import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { STORAGE_KEYS, getItem } from '../storage';
 import { User } from '../../types/auth';
 import { Customer } from '../../types/customer';
@@ -178,4 +179,56 @@ export const drawPdfFooter = (
     // Right: Page number
     doc.text(`Page ${i} of ${pageCount}`, pageWidth - 14, pageHeight - 10, { align: 'right' });
   }
+};
+
+export const addPdfHeader = drawPdfHeader;
+export const addPdfFooter = drawPdfFooter;
+
+export const drawPdfSectionHeader = (doc: jsPDF, title: string, y: number): number => {
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(...PDF_COLORS.darkHeading);
+  doc.text(title.toUpperCase(), 14, y);
+  return y + 6;
+};
+
+export const drawPdfInfoGrid = (
+  doc: jsPDF,
+  items: { label: string; value: string }[],
+  startY: number,
+  cols = 2
+): number => {
+  autoTable(doc, {
+    startY,
+    theme: 'plain',
+    margin: { left: 14, right: 14 },
+    styles: { fontSize: 9, cellPadding: 3, textColor: PDF_COLORS.bodyText },
+    body: items.reduce((acc: any[][], item, idx) => {
+      if (idx % cols === 0) acc.push([]);
+      acc[acc.length - 1].push(`${item.label}:`, item.value);
+      return acc;
+    }, []),
+  });
+  return (doc as any).lastAutoTable.finalY + 6;
+};
+
+export const renderPdfTable = (
+  doc: jsPDF,
+  options: { startY: number; head: string[][]; body: string[][]; bodyStyles?: any }
+): number => {
+  autoTable(doc, {
+    startY: options.startY,
+    margin: { left: 14, right: 14 },
+    head: options.head,
+    body: options.body,
+    headStyles: {
+      fillColor: PDF_COLORS.primary,
+      textColor: PDF_COLORS.white,
+      fontStyle: 'bold',
+      fontSize: 9,
+    },
+    styles: { fontSize: 9, cellPadding: 3.5, textColor: PDF_COLORS.bodyText },
+    bodyStyles: options.bodyStyles,
+  });
+  return (doc as any).lastAutoTable.finalY + 8;
 };

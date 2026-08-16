@@ -16,7 +16,6 @@ export const SocialAuthButtons: React.FC<SocialAuthButtonsProps> = ({ isLoading,
   const [socialLoading, setSocialLoading] = useState<string | null>(null);
 
   // Admin accounts must NEVER use social login.
-  // Social authentication is strictly restricted to Customer accounts.
   if (role === 'Admin') return null;
 
   const handleSocialAuth = async (provider: 'Google' | 'Microsoft' | 'Apple') => {
@@ -24,42 +23,23 @@ export const SocialAuthButtons: React.FC<SocialAuthButtonsProps> = ({ isLoading,
 
     setSocialLoading(provider);
     try {
-      // 1. Try redirecting to official Backend OAuth endpoint GET /auth/{provider}/login
-      const backendOAuthUrl = authApi.getOAuthLoginUrl(provider);
-      window.location.assign(backendOAuthUrl);
-      return;
-
-      // Check if backend responds with redirect or 200
-      try {
-        const res = await fetch(backendOAuthUrl, { method: 'HEAD', redirect: 'follow' });
-        if (res.ok || res.redirected) {
-          window.location.href = backendOAuthUrl;
-          return;
-        }
-      } catch {
-        // Fallback to seamless client-side OAuth flow
-      }
-
-      // 2. Perform OAuth session creation & Customer account registration.
-      // Backend must determine role — frontend never elevates privileges.
+      // Direct social authentication session creation
       const session = await socialLogin(provider);
       if (session.user.role === 'Admin') {
-        // Safety guard: social login must never authenticate Admin accounts.
-        console.warn('Social login returned Admin role — access denied.');
         navigate('/login');
         return;
       }
       if (!session.user.phoneNumber || !session.user.phoneNumber?.trim()) {
-        navigate('/profile?completeMobile=true', {
+        navigate('/customer/profile?completeMobile=true', {
           state: {
-            message: 'Google login successful. Please enter your mobile number to complete your profile setup.',
+            message: `${provider} login successful. Please update your profile details.`,
           },
         });
       } else {
         navigate('/customer/dashboard');
       }
     } catch (err: any) {
-      console.error('OAuth Authentication failed:', err);
+      console.error('Social login failed:', err);
     } finally {
       setSocialLoading(null);
     }
@@ -134,7 +114,7 @@ export const SocialAuthButtons: React.FC<SocialAuthButtonsProps> = ({ isLoading,
           ) : (
             <svg className={`w-4 h-4 shrink-0 ${!ENABLED_OAUTH_PROVIDERS.Microsoft ? 'opacity-70' : ''}`} viewBox="0 0 23 23">
               <path fill="#f35325" d="M1 1h10v10H1z" />
-              <path fill="#81bc06" d="M12 1h10v10H12z" />
+              <path fill="#81bc06" d="M12 1h10v10H1z" />
               <path fill="#05a6f0" d="M1 12h10v10H1z" />
               <path fill="#ffba08" d="M12 12h10v10H12z" />
             </svg>
