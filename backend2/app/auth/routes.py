@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
 
+from typing import Optional, Dict, List, Any
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt
@@ -15,16 +16,22 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import RevokedToken, User
+from app.billing.models import Subscription
+from app.payment_models import Payment
 from app.schemas.user import UserCreate, OTPVerifyRequest, ResetPasswordRequest, ResendOTPRequest
 from app.auth.jwt import create_access_token
 from app.auth.password import hash_password, verify_password
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, oauth2_scheme_optional
 from app.auth.email import (
     send_otp_email,
     send_welcome_email,
     send_password_reset_email,
     send_profile_incomplete_email,
     send_suspension_email,
+    send_payment_success_email,
+    send_cancellation_email,
+    send_upgrade_email,
+    send_downgrade_email,
 )
 from app.config import settings
 from app.auth.rate_limit import (
@@ -60,35 +67,62 @@ def _hash_reset_token(token: str) -> str:
     ).hexdigest()
 
 
-def _user_response(user: User) -> dict:
-    """Serialise a User ORM object into the shape the frontend expects."""
-    cust_prefix = "ADM-2026" if user.role == "Admin" else "CUS-2026"
+def _user_response(user: User, db: Session = None) -> dict:
+    cust_prefix = "ADM" if getattr(user, "role", "").lower() == "admin" else "CUS"
     customer_id = f"{cust_prefix}-{user.id:06d}"
     created_iso = user.created_at.isoformat() if user.created_at else datetime.now(timezone.utc).isoformat()
     created_fmt = user.created_at.strftime("%d/%m/%Y") if user.created_at else datetime.now(timezone.utc).strftime("%d/%m/%Y")
 
     acc_status = getattr(user, "account_status", None) or "ACTIVE"
 
+    plan_name = "No active plan"
+    sub_status = "Inactive"
+    mrr_amount = 0.0
+    total_spent = 0.0
+
+    if db is not None:
+        active_sub = (
+            db.query(Subscription)
+            .filter(Subscription.user_id == user.id, Subscription.status == "active")
+            .order_by(Subscription.id.desc())
+            .first()
+        )
+        if active_sub and active_sub.plan:
+            plan_name = active_sub.plan.name
+            sub_status = "Active"
+            mrr_amount = float(active_sub.price) if active_sub.price is not None and active_sub.price > 0 else (float(active_sub.plan.monthly_price) if active_sub.plan else 0.0)
+
+        user_payments = db.query(Payment).filter(
+            (Payment.customer_id == user.id) | (Payment.customer_email.ilike(user.email))
+        ).all()
+        total_spent = sum(float(p.amount) for p in user_payments if p.status in ["paid", "PAID", "success", "SUCCESS"])
+
     return {
         "id": str(user.id),
         "customerId": customer_id,
-        "fullName": f"{user.first_name} {user.last_name}",
+        "fullName": f"{user.first_name or ''} {user.last_name or ''}".strip() or user.email.split("@")[0],
         "firstName": user.first_name,
         "lastName": user.last_name,
         "email": user.email,
         "phoneNumber": user.phone_number,
         "phone": user.phone_number,
-        "country": user.country,
+        "country": user.country or "India",
+        "state": getattr(user, "state", None) or "Maharashtra",
+        "city": getattr(user, "city", None) or "Mumbai",
+        "zipCode": getattr(user, "zip_code", None) or "400001",
+        "address": getattr(user, "address", None) or "",
         "role": user.role,
         "createdAt": created_iso,
         "isVerified": user.is_verified,
-        "status": "Verified" if user.is_verified else "Pending",
+        "status": "Suspended" if acc_status == "SUSPENDED" else ("Verified" if user.is_verified else "Pending"),
         "accountStatus": acc_status,
         "registrationDate": created_fmt,
         "joinedDate": user.created_at.strftime("%Y-%m-%d") if user.created_at else datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-        "currentPlan": "Starter",
-        "subscriptionPlan": "Starter",
-        "subscriptionStatus": "Active",
+        "currentPlan": plan_name,
+        "subscriptionPlan": plan_name,
+        "subscriptionStatus": sub_status,
+        "mrr": mrr_amount,
+        "totalSpent": total_spent,
         "themePreference": "light",
         "deletedAt": user.deleted_at.isoformat() if getattr(user, "deleted_at", None) else None,
         "deletedBy": getattr(user, "deleted_by", None),
@@ -105,6 +139,12 @@ def _user_response(user: User) -> dict:
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
+
+class SocialLoginRequest(BaseModel):
+    email: EmailStr
+    fullName: str | None = None
+    provider: str | None = "Google"
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -297,7 +337,7 @@ def login_user(
     if getattr(db_user, "account_status", "ACTIVE") == "SUSPENDED":
         raise HTTPException(
             status_code=403,
-            detail="ACCOUNT_SUSPENDED: Your Billing Platform account has been temporarily suspended by an administrator. Please contact Support to request account restoration.",
+            detail="ACCOUNT_SUSPENDED: Your NexFlow account has been temporarily suspended by an administrator. Please contact Support to request account restoration.",
         )
 
     if not db_user.is_active:
@@ -320,6 +360,50 @@ def login_user(
             "access_token": access_token,
             "token_type": "bearer",
             "user": _user_response(db_user),
+        },
+    }
+
+
+@router.post("/social-login")
+def social_login(payload: SocialLoginRequest, db: Session = Depends(get_db)):
+    clean_email = payload.email.strip().lower()
+    user = db.query(User).filter(User.email == clean_email).first()
+
+    if not user:
+        name_parts = (payload.fullName or clean_email.split('@')[0]).strip().split(' ', 1)
+        first_name = name_parts[0]
+        last_name = name_parts[1] if len(name_parts) > 1 else ""
+
+        user = User(
+            first_name=first_name,
+            last_name=last_name,
+            email=clean_email,
+            hashed_password=None,
+            role="Customer",
+            is_verified=True,
+            is_active=True,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    if getattr(user, "account_status", "ACTIVE") == "SUSPENDED":
+        raise HTTPException(
+            status_code=403,
+            detail="ACCOUNT_SUSPENDED: Your NexFlow account has been temporarily suspended by an administrator."
+        )
+
+    access_token = create_access_token(
+        data={"sub": str(user.id), "email": user.email}
+    )
+
+    return {
+        "success": True,
+        "message": f"Authenticated with {payload.provider or 'OAuth'} successfully.",
+        "data": {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": _user_response(user),
         },
     }
 
@@ -425,30 +509,34 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
 
 @router.post("/logout")
 def logout(
-    token: str = Depends(oauth2_scheme),
+    token: str = Depends(oauth2_scheme_optional),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
 ):
-    """Invalidate the current JWT until its expiry time."""
-    payload = jwt.decode(
-        token,
-        settings.SECRET_KEY,
-        algorithms=[settings.ALGORITHM],
-        audience=settings.JWT_AUDIENCE,
-        issuer=settings.JWT_ISSUER,
-    )
-    token_id = payload["jti"]
-    expires_at = datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
+    """Invalidate the current JWT until its expiry time if present."""
+    if token:
+        try:
+            payload = jwt.decode(
+                token,
+                settings.SECRET_KEY,
+                algorithms=[settings.ALGORITHM],
+                options={"verify_aud": False, "verify_iss": False},
+            )
+            token_id = payload.get("jti")
+            exp = payload.get("exp")
+            expires_at = datetime.fromtimestamp(exp, tz=timezone.utc) if exp else datetime.now(timezone.utc)
 
-    if not db.query(RevokedToken).filter(RevokedToken.jti == token_id).first():
-        db.add(RevokedToken(jti=token_id, expires_at=expires_at))
-        db.commit()
+            if token_id and not db.query(RevokedToken).filter(RevokedToken.jti == token_id).first():
+                db.add(RevokedToken(jti=token_id, expires_at=expires_at))
+                db.commit()
+        except Exception as exc:
+            logger.warning("Logout token decode notice: %s", exc)
 
     return {
         "success": True,
         "message": "Logged out successfully.",
         "data": {"loggedOut": True},
     }
+
 
 
 # ---------------------------------------------------------------------------
@@ -607,7 +695,7 @@ def admin_get_customers(
     customers = query.order_by(User.id.desc()).all()
     return {
         "success": True,
-        "data": [_user_response(c) for c in customers],
+        "data": [_user_response(c, db=db) for c in customers],
     }
 
 
@@ -719,3 +807,241 @@ def admin_soft_delete_customer(
         "message": f"Customer {customer.first_name} {customer.last_name} soft-deleted. Account moved to Recycle Bin.",
         "data": _user_response(customer),
     }
+
+
+# ---------------------------------------------------------------------------
+# TRANSACTIONAL EMAIL ENDPOINTS & ADDRESS UPDATE
+# ---------------------------------------------------------------------------
+
+class PaymentSuccessEmailRequest(BaseModel):
+    to_email: EmailStr
+    customer_name: str
+    plan_name: str
+    amount_paid: float
+    payment_date: str
+    payment_method: str
+    transaction_id: str
+    invoice_id: str
+
+
+@router.post("/email/payment-success")
+def trigger_payment_success_email(payload: PaymentSuccessEmailRequest, background_tasks: BackgroundTasks):
+    try:
+        background_tasks.add_task(
+            send_payment_success_email,
+            payload.to_email,
+            payload.customer_name,
+            payload.plan_name,
+            payload.amount_paid,
+            payload.payment_date,
+            payload.payment_method,
+            payload.transaction_id,
+            payload.invoice_id,
+        )
+        return {"success": True, "message": f"Payment success email queued for {payload.to_email}"}
+    except Exception as exc:
+        logger.error("Error queuing payment success email: %s", exc)
+        return {"success": False, "message": str(exc)}
+
+
+class CancellationEmailRequest(BaseModel):
+    to_email: EmailStr
+    customer_name: str
+    plan_name: str
+    cancellation_date: str
+    expiry_date: str
+    amount_paid: float
+    refund_amount: float
+    refund_status: str
+    subscription_id: str
+
+
+@router.post("/email/cancellation")
+def trigger_cancellation_email(payload: CancellationEmailRequest, background_tasks: BackgroundTasks):
+    try:
+        background_tasks.add_task(
+            send_cancellation_email,
+            payload.to_email,
+            payload.customer_name,
+            payload.plan_name,
+            payload.cancellation_date,
+            payload.expiry_date,
+            payload.amount_paid,
+            payload.refund_amount,
+            payload.refund_status,
+            payload.subscription_id,
+        )
+        return {"success": True, "message": f"Cancellation email queued for {payload.to_email}"}
+    except Exception as exc:
+        logger.error("Error queuing cancellation email: %s", exc)
+        return {"success": False, "message": str(exc)}
+
+
+class UpgradeEmailRequest(BaseModel):
+    to_email: EmailStr
+    customer_name: str
+    previous_plan: str
+    new_plan: str
+    previous_price: float
+    new_price: float
+    prorated_credit: float
+    amount_charged: float
+    next_renewal_amount: float
+    effective_date: str
+    invoice_id: str
+    payment_id: str
+
+
+@router.post("/email/upgrade")
+def trigger_upgrade_email(payload: UpgradeEmailRequest, background_tasks: BackgroundTasks):
+    try:
+        background_tasks.add_task(
+            send_upgrade_email,
+            payload.to_email,
+            payload.customer_name,
+            payload.previous_plan,
+            payload.new_plan,
+            payload.previous_price,
+            payload.new_price,
+            payload.prorated_credit,
+            payload.amount_charged,
+            payload.next_renewal_amount,
+            payload.effective_date,
+            payload.invoice_id,
+            payload.payment_id,
+        )
+        return {"success": True, "message": f"Upgrade email queued for {payload.to_email}"}
+    except Exception as exc:
+        logger.error("Error queuing upgrade email: %s", exc)
+        return {"success": False, "message": str(exc)}
+
+
+class DowngradeEmailRequest(BaseModel):
+    to_email: EmailStr
+    customer_name: str
+    previous_plan: str
+    new_plan: str
+    previous_price: float
+    new_price: float
+    effective_date: str
+    next_billing_date: str
+    subscription_id: str
+
+
+@router.post("/email/downgrade")
+def trigger_downgrade_email(payload: DowngradeEmailRequest, background_tasks: BackgroundTasks):
+    try:
+        background_tasks.add_task(
+            send_downgrade_email,
+            payload.to_email,
+            payload.customer_name,
+            payload.previous_plan,
+            payload.new_plan,
+            payload.previous_price,
+            payload.new_price,
+            payload.effective_date,
+            payload.next_billing_date,
+            payload.subscription_id,
+        )
+        return {"success": True, "message": f"Downgrade email queued for {payload.to_email}"}
+    except Exception as exc:
+        logger.error("Error queuing downgrade email: %s", exc)
+        return {"success": False, "message": str(exc)}
+
+
+class UpdateProfileRequest(BaseModel):
+    firstName: Optional[str] = None
+    lastName: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    fullName: Optional[str] = None
+    phoneNumber: Optional[str] = None
+    phone_number: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    zipCode: Optional[str] = None
+    zip_code: Optional[str] = None
+    country: Optional[str] = None
+    themePreference: Optional[str] = None
+
+
+@router.put("/profile")
+@router.put("/auth/profile")
+@router.patch("/profile")
+@router.patch("/auth/profile")
+def update_profile(
+    payload: UpdateProfileRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    first_name = payload.firstName or payload.first_name
+    last_name = payload.lastName or payload.last_name
+    if not first_name and payload.fullName:
+        parts = payload.fullName.strip().split(" ", 1)
+        first_name = parts[0]
+        if len(parts) > 1 and not last_name:
+            last_name = parts[1]
+
+    if first_name is not None:
+        current_user.first_name = first_name.strip()
+    if last_name is not None:
+        current_user.last_name = last_name.strip()
+
+    phone = payload.phoneNumber or payload.phone_number or payload.phone
+    if phone is not None:
+        current_user.phone_number = phone.strip()
+
+    if payload.address is not None:
+        current_user.address = payload.address.strip()
+    if payload.city is not None:
+        current_user.city = payload.city.strip()
+    if payload.state is not None:
+        current_user.state = payload.state.strip()
+
+    zip_val = payload.zipCode or payload.zip_code
+    if zip_val is not None:
+        current_user.zip_code = zip_val.strip()
+
+    if payload.country is not None:
+        current_user.country = payload.country.strip()
+
+    db.commit()
+    db.refresh(current_user)
+
+    user_data = _user_response(current_user, db=db)
+    return {
+        "success": True,
+        "message": "Profile updated successfully.",
+        "user": user_data,
+        "data": user_data,
+    }
+
+
+class AddressUpdateRequest(BaseModel):
+    country: str = "India"
+    state: str = ""
+    city: str = ""
+    zip_code: str = ""
+    address: str = ""
+
+
+@router.put("/profile/address")
+def update_profile_address(
+    payload: AddressUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    current_user.country = payload.country
+    current_user.state = payload.state
+    current_user.city = payload.city
+    current_user.zip_code = payload.zip_code
+    current_user.address = payload.address
+    db.commit()
+    db.refresh(current_user)
+    return {
+        "success": True,
+        "message": "Profile address updated successfully.",
+        "data": _user_response(current_user, db=db),
+    }

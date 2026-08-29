@@ -8,6 +8,7 @@ import { PhoneInput } from '../../components/common/PhoneInput';
 import { Badge } from '../../components/common/Badge';
 import { Toast } from '../../components/common/Toast';
 import { Modal } from '../../components/common/Modal';
+import { PageHeader } from '../../components/common/PageHeader';
 import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../contexts/ThemeContext';
 import { authService } from '../../services/authService';
@@ -52,6 +53,9 @@ export const ProfilePage: React.FC = () => {
   const [phoneCode, setPhoneCode] = useState(initialPhoneDetails.code);
   const [phone, setPhone] = useState(initialPhoneDetails.number || (isAdmin ? '1800-BILLING-ADM' : ''));
   const [address, setAddress] = useState(user?.address || '');
+  const [city, setCity] = useState(user?.city || 'Mumbai');
+  const [state, setState] = useState(user?.state || 'Maharashtra');
+  const [zipCode, setZipCode] = useState(user?.zipCode || '400001');
   const [photoUrl, setPhotoUrl] = useState(user?.profilePicture || '');
   const [timezone, setTimezone] = useState('Asia/Kolkata');
   const [country, setCountry] = useState(user?.country || 'India');
@@ -64,18 +68,21 @@ export const ProfilePage: React.FC = () => {
   const [isDisconnectModalOpen, setIsDisconnectModalOpen] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     const fullName = `${firstName.trim()} ${lastName.trim()}`;
     const formattedPhone = isAdmin ? user?.phoneNumber : (phone.trim() ? `${phoneCode} ${phone.trim()}` : '');
-    updateUser({
+    await updateUser({
       firstName,
       lastName,
       fullName,
       phoneNumber: formattedPhone,
       address,
-      profilePicture: photoUrl,
+      city,
+      state,
+      zipCode,
       country,
+      profilePicture: photoUrl,
       themePreference: theme,
     });
     setToastMsg('Profile preferences updated successfully.');
@@ -122,18 +129,16 @@ export const ProfilePage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto pb-12">
-      <div>
-        <h1 className="text-2xl font-extrabold text-heading flex items-center gap-2">
-          <UserIcon className="w-6 h-6 text-primary" />
-          {isAdmin ? 'System Administrator Profile' : 'Customer Account Profile'}
-        </h1>
-        <p className="text-xs text-secondaryText mt-1">
-          {isAdmin
-            ? 'Manage administrative identity, system access role, and preferences.'
-            : 'Manage personal details, contact phone number, address, and login providers.'}
-        </p>
-      </div>
+    <div className="space-y-6 max-w-7xl mx-auto pb-16">
+      <PageHeader
+        title={isAdmin ? 'System Administrator Profile' : 'Customer Account Profile'}
+        subtitle={
+          isAdmin
+            ? 'Manage administrative identity, system access role, and security preferences.'
+            : 'Manage personal details, contact phone number, address, and connected login providers.'
+        }
+        icon={UserIcon}
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Profile Card Summary */}
@@ -282,19 +287,41 @@ export const ProfilePage: React.FC = () => {
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Input
-                      label="Billing Address"
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                      leftIcon={<MapPin className="w-4 h-4" />}
-                    />
-
-                    <Input
                       label="Country"
                       value={country}
                       onChange={(e) => setCountry(e.target.value)}
                       leftIcon={<Globe className="w-4 h-4" />}
                     />
+                    <Input
+                      label="State"
+                      value={state}
+                      onChange={(e) => setState(e.target.value)}
+                      leftIcon={<MapPin className="w-4 h-4" />}
+                    />
                   </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Input
+                      label="City"
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      leftIcon={<MapPin className="w-4 h-4" />}
+                    />
+                    <Input
+                      label="ZIP / PIN Code"
+                      value={zipCode}
+                      onChange={(e) => setZipCode(e.target.value)}
+                      leftIcon={<MapPin className="w-4 h-4" />}
+                    />
+                  </div>
+
+                  <Input
+                    label="Street / Billing Address"
+                    value={address}
+                    placeholder="e.g. 123 Business Avenue, Suite 400"
+                    onChange={(e) => setAddress(e.target.value)}
+                    leftIcon={<MapPin className="w-4 h-4" />}
+                  />
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Input
@@ -339,7 +366,7 @@ export const ProfilePage: React.FC = () => {
             </p>
 
             <div className="space-y-3">
-              {(['Google', 'Microsoft', 'Apple'] as const).map((prov) => {
+              {(['Google'] as const).map((prov) => {
                 const isConnected = linkedProviders.includes(prov);
                 const isEnabled = ENABLED_OAUTH_PROVIDERS[prov];
                 return (
@@ -353,19 +380,6 @@ export const ProfilePage: React.FC = () => {
                           <svg className="w-4 h-4" viewBox="0 0 24 24">
                             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
                             <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                          </svg>
-                        )}
-                        {prov === 'Microsoft' && (
-                          <svg className="w-4 h-4" viewBox="0 0 23 23">
-                            <path fill="#f35325" d="M1 1h10v10H1z" />
-                            <path fill="#81bc06" d="M12 1h10v10H12z" />
-                            <path fill="#05a6f0" d="M1 12h10v10H1z" />
-                            <path fill="#ffba08" d="M12 12h10v10H12z" />
-                          </svg>
-                        )}
-                        {prov === 'Apple' && (
-                          <svg className="w-4 h-4 fill-current text-primaryText" viewBox="0 0 170 170">
-                            <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.34.13-9.14-1.92-14.4-6.15-3.63-2.94-7.58-7.7-11.85-14.28-6.02-9.28-10.9-19.68-14.65-31.2-3.75-11.53-5.63-22.37-5.63-32.53 0-15.12 3.84-27.42 11.53-36.9 7.68-9.48 17.27-14.31 28.77-14.5 4.58 0 9.77 1.2 15.57 3.59 5.8 2.39 9.87 3.63 12.2 3.73 2.12 0 6.37-1.3 12.74-3.9 6.37-2.6 11.75-3.8 16.14-3.59 12.06.67 21.6 5.17 28.63 13.5-10.82 6.53-16.08 15.66-15.79 27.39.29 9.17 3.86 16.8 10.72 22.89 6.86 6.09 15.02 9.53 24.48 10.33-2.22 6.72-5.1 13.62-8.65 20.7z" />
                           </svg>
                         )}
                       </div>

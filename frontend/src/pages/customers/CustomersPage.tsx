@@ -5,6 +5,11 @@ import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 import { Modal } from '../../components/common/Modal';
+import { PageHeader } from '../../components/common/PageHeader';
+import { EmptyState } from '../../components/common/EmptyState';
+import { SearchInput } from '../../components/common/SearchInput';
+import { Avatar } from '../../components/common/Avatar';
+import { TableSkeleton } from '../../components/common/SkeletonLoader';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { Customer } from '../../types/customer';
 import { customerApi } from '../../services/api/customerApi';
@@ -108,175 +113,186 @@ export const CustomersPage: React.FC = () => {
     return <Badge variant="neutral">{cust.status}</Badge>;
   };
 
+  const activeCount = customers.filter(
+    (c) => c.accountStatus !== 'SUSPENDED' && c.accountStatus !== 'DELETED' && c.status !== 'Suspended' && !c.deletedAt
+  ).length;
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-extrabold text-heading flex items-center gap-2">
-            <Users className="w-6 h-6 text-primary" />
-            Customer Directory
-          </h1>
-          <p className="text-xs text-secondaryText mt-1">
-            Manage customer accounts, account states, suspensions, and recycle bin recovery.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Customer Directory"
+        subtitle="Manage customer profiles, account states, suspensions, and recycle bin recovery."
+        icon={Users}
+      />
 
-      {/* Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-border pb-1">
+      {/* Navigation Tabs with Count Badges */}
+      <div className="flex items-center gap-2 border-b border-border pb-1 overflow-x-auto no-scrollbar">
         <button
           onClick={() => setActiveTab('active')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'active'
-              ? 'bg-primary text-white shadow-md'
-              : 'text-secondaryText hover:text-heading hover:bg-secondary/60'
+              ? 'bg-primary text-white shadow-xs'
+              : 'text-secondaryText hover:text-heading hover:bg-secondary'
           }`}
         >
           <CheckCircle className="w-4 h-4" />
-          Active Customers
+          <span>Active Customers</span>
         </button>
 
         <button
           onClick={() => setActiveTab('suspended')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'suspended'
-              ? 'bg-amber-600 text-white shadow-md'
-              : 'text-secondaryText hover:text-heading hover:bg-secondary/60'
+              ? 'bg-amber-600 text-white shadow-xs'
+              : 'text-secondaryText hover:text-heading hover:bg-secondary'
           }`}
         >
           <Ban className="w-4 h-4" />
-          Suspended Customers
+          <span>Suspended Accounts</span>
         </button>
 
         <button
           onClick={() => setActiveTab('deleted')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'deleted'
-              ? 'bg-rose-600 text-white shadow-md'
-              : 'text-secondaryText hover:text-heading hover:bg-secondary/60'
+              ? 'bg-rose-600 text-white shadow-xs'
+              : 'text-secondaryText hover:text-heading hover:bg-secondary'
           }`}
         >
           <Trash2 className="w-4 h-4" />
-          Customer Recycle Bin
+          <span>Recycle Bin</span>
         </button>
       </div>
 
       {/* Search Bar & Counter */}
       <Card className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-mutedText" />
-          <input
-            type="text"
+        <div className="flex-1 max-w-md w-full">
+          <SearchInput
             placeholder="Search customer name, email, phone, or plan..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-input border border-border rounded-xl text-xs text-primaryText focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary font-medium"
+            onClear={() => setSearchQuery('')}
           />
         </div>
-        <div className="text-xs text-secondaryText font-semibold">
+        <div className="text-xs text-secondaryText font-medium">
           Showing <span className="text-heading font-extrabold">{filteredCustomers.length}</span> records in{' '}
           <span className="capitalize font-bold text-primary">{activeTab === 'deleted' ? 'Recycle Bin' : activeTab}</span> view
         </div>
       </Card>
 
       {/* Table Section */}
-      <Card space-y-4>
+      <Card className="p-0 overflow-hidden border border-border">
         {isLoading ? (
-          <div className="p-12 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto" />
-            <p className="text-xs text-secondaryText mt-3 font-semibold">Loading customer directory...</p>
-          </div>
+          <TableSkeleton rows={5} columns={activeTab === 'deleted' ? 6 : 7} />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="border-b border-border text-mutedText uppercase tracking-wider bg-tableHeader">
-                  <th className="p-3 font-semibold">Customer Name</th>
-                  <th className="p-3 font-semibold">Email</th>
-                  <th className="p-3 font-semibold">Phone</th>
+                <tr className="border-b border-border text-mutedText text-[11px] uppercase tracking-wider bg-tableHeader">
+                  <th className="py-3 px-4 font-bold">Customer</th>
+                  <th className="py-3 px-4 font-bold">Email</th>
+                  <th className="py-3 px-4 font-bold">Phone</th>
                   {activeTab === 'deleted' ? (
                     <>
-                      <th className="p-3 font-semibold">Joined Date</th>
-                      <th className="p-3 font-semibold">Deleted Date</th>
-                      <th className="p-3 font-semibold">Deleted By</th>
-                      <th className="p-3 font-semibold">Account Status</th>
+                      <th className="py-3 px-4 font-bold">Joined Date</th>
+                      <th className="py-3 px-4 font-bold">Deleted Date</th>
+                      <th className="py-3 px-4 font-bold">Deleted By</th>
+                      <th className="py-3 px-4 font-bold">Account Status</th>
                     </>
                   ) : (
                     <>
-                      <th className="p-3 font-semibold">Current Plan</th>
-                      <th className="p-3 font-semibold">MRR</th>
-                      <th className="p-3 font-semibold">Sub Status</th>
-                      <th className="p-3 font-semibold">Account Status</th>
-                      <th className="p-3 font-semibold">Joined Date</th>
+                      <th className="py-3 px-4 font-bold">Current Plan</th>
+                      <th className="py-3 px-4 font-bold text-right">MRR</th>
+                      <th className="py-3 px-4 font-bold text-center">Sub Status</th>
+                      <th className="py-3 px-4 font-bold text-center">Account Status</th>
+                      <th className="py-3 px-4 font-bold">Joined Date</th>
                     </>
                   )}
-                  <th className="p-3 font-semibold text-right">Actions</th>
+                  <th className="py-3 px-4 font-bold text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {filteredCustomers.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="p-8 text-center text-secondaryText font-medium">
-                      <AlertTriangle className="w-8 h-8 text-mutedText mx-auto mb-2" />
-                      No customers found matching the criteria in this section.
+                    <td colSpan={10} className="p-8">
+                      <EmptyState
+                        icon={Users}
+                        title={
+                          activeTab === 'active'
+                            ? 'No Active Customers'
+                            : activeTab === 'suspended'
+                            ? 'No Suspended Customers'
+                            : 'Customer Recycle Bin is Empty'
+                        }
+                        description={`No customer records match your filter criteria in the ${activeTab} section.`}
+                      />
                     </td>
                   </tr>
                 ) : (
                   filteredCustomers.map((cust) => (
                     <tr key={cust.id} className="hover:bg-tableHover transition-colors group">
-                      {/* Customer Name */}
-                      <td className="p-3">
+                      {/* Customer Name + Avatar */}
+                      <td className="py-3 px-4">
                         <Link
                           to={`/admin/customers/${cust.id}`}
-                          className="font-bold text-heading hover:text-primary transition-colors flex items-center gap-1.5 cursor-pointer text-left group-hover:text-primary"
+                          className="flex items-center gap-2.5 group/link cursor-pointer text-left"
                         >
-                          <span>{cust.name}</span>
-                          <ExternalLink className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 text-primary transition-opacity" />
+                          <Avatar name={cust.name} size="sm" />
+                          <div>
+                            <span className="font-bold text-heading group-hover/link:text-primary transition-colors flex items-center gap-1">
+                              {cust.name}
+                              <ExternalLink className="w-3 h-3 opacity-0 group-hover/link:opacity-100 text-primary transition-opacity" />
+                            </span>
+                            {cust.customerId && (
+                              <div className="text-[10px] font-mono text-mutedText">{cust.customerId}</div>
+                            )}
+                          </div>
                         </Link>
-                        {cust.customerId && (
-                          <div className="text-[10px] font-mono text-mutedText">{cust.customerId}</div>
-                        )}
                       </td>
-                      <td className="p-3 text-secondaryText font-semibold">{cust.email}</td>
-                      <td className="p-3 text-secondaryText font-medium">{cust.phone || 'N/A'}</td>
+                      <td className="py-3 px-4 text-secondaryText font-medium">{cust.email}</td>
+                      <td className="py-3 px-4 text-secondaryText font-mono text-[11px]">{cust.phone || '—'}</td>
 
                       {activeTab === 'deleted' ? (
                         <>
-                          <td className="p-3 text-mutedText font-medium">{formatDate(cust.joinedDate)}</td>
-                          <td className="p-3 text-rose-600 dark:text-rose-400 font-bold font-mono">
+                          <td className="py-3 px-4 text-mutedText">{formatDate(cust.joinedDate)}</td>
+                          <td className="py-3 px-4 text-rose-600 dark:text-rose-400 font-bold font-mono">
                             {cust.deletedAt ? formatDate(cust.deletedAt) : 'Recent'}
                           </td>
-                          <td className="p-3 text-mutedText font-medium">{cust.deletedBy || 'Admin'}</td>
-                          <td className="p-3">{getAccountStatusBadge(cust)}</td>
+                          <td className="py-3 px-4 text-mutedText">{cust.deletedBy || 'Admin'}</td>
+                          <td className="py-3 px-4">{getAccountStatusBadge(cust)}</td>
                         </>
                       ) : (
                         <>
-                          <td className="p-3 font-bold text-primaryText">{cust.subscriptionPlan}</td>
-                          <td className="p-3 font-bold text-emerald-600 dark:text-emerald-400">
+                          <td className="py-3 px-4 font-bold text-heading">
+                            <span className="px-2 py-0.5 rounded-lg bg-secondary text-primary font-semibold text-[11px]">
+                              {cust.subscriptionPlan}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 font-black text-right text-emerald-600 dark:text-emerald-400 font-mono">
                             {formatCurrency(cust.mrr)}
                           </td>
-                          <td className="p-3 font-semibold">
+                          <td className="py-3 px-4 text-center">
                             <span
                               className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                                 cust.subscriptionStatus === 'Active'
-                                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400'
-                                  : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                                  : 'bg-secondary text-secondaryText border border-border'
                               }`}
                             >
                               {cust.subscriptionStatus || 'Active'}
                             </span>
                           </td>
-                          <td className="p-3">{getAccountStatusBadge(cust)}</td>
-                          <td className="p-3 text-mutedText font-medium">{formatDate(cust.joinedDate)}</td>
+                          <td className="py-3 px-4 text-center">{getAccountStatusBadge(cust)}</td>
+                          <td className="py-3 px-4 text-mutedText">{formatDate(cust.joinedDate)}</td>
                         </>
                       )}
 
                       {/* Actions */}
-                      <td className="p-3 text-right">
+                      <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <Link to={`/admin/customers/${cust.id}`}>
-                            <Button variant="outline" size="sm" leftIcon={<Eye className="w-3 h-3" />}>
+                            <Button variant="outline" size="sm" leftIcon={<Eye className="w-3.5 h-3.5" />}>
                               View
                             </Button>
                           </Link>
@@ -286,18 +302,18 @@ export const CustomersPage: React.FC = () => {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                leftIcon={<Ban className="w-3 h-3 text-amber-500" />}
+                                leftIcon={<Ban className="w-3.5 h-3.5 text-amber-500" />}
                                 onClick={() => setSuspendTarget(cust)}
-                                className="text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950"
+                                className="text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40"
                               >
                                 Suspend
                               </Button>
                               <Button
                                 variant="outline"
                                 size="sm"
-                                leftIcon={<Trash2 className="w-3 h-3 text-rose-500" />}
+                                leftIcon={<Trash2 className="w-3.5 h-3.5 text-rose-500" />}
                                 onClick={() => setDeleteTarget(cust)}
-                                className="text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950"
+                                className="text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40"
                               >
                                 Delete
                               </Button>
@@ -309,7 +325,7 @@ export const CustomersPage: React.FC = () => {
                               <Button
                                 variant="primary"
                                 size="sm"
-                                leftIcon={<RotateCcw className="w-3 h-3" />}
+                                leftIcon={<RotateCcw className="w-3.5 h-3.5" />}
                                 onClick={() => setRestoreTarget(cust)}
                               >
                                 Restore
@@ -317,9 +333,9 @@ export const CustomersPage: React.FC = () => {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                leftIcon={<Trash2 className="w-3 h-3 text-rose-500" />}
+                                leftIcon={<Trash2 className="w-3.5 h-3.5 text-rose-500" />}
                                 onClick={() => setDeleteTarget(cust)}
-                                className="text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950"
+                                className="text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40"
                               >
                                 Delete
                               </Button>
@@ -330,7 +346,7 @@ export const CustomersPage: React.FC = () => {
                             <Button
                               variant="primary"
                               size="sm"
-                              leftIcon={<RotateCcw className="w-3 h-3" />}
+                              leftIcon={<RotateCcw className="w-3.5 h-3.5" />}
                               onClick={() => setRestoreTarget(cust)}
                             >
                               Restore Account

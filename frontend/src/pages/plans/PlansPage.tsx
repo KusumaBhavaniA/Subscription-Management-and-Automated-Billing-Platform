@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Layers,
   Check,
@@ -10,9 +11,9 @@ import {
   HardDrive,
   Code2,
   Headphones,
-  DollarSign,
   AlertTriangle,
   Sparkles,
+  ArrowRight,
 } from 'lucide-react';
 import { Card } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
@@ -20,17 +21,27 @@ import { Button } from '../../components/common/Button';
 import { Modal } from '../../components/common/Modal';
 import { Input } from '../../components/common/Input';
 import { Switch } from '../../components/common/Switch';
+import { PageHeader } from '../../components/common/PageHeader';
 import { formatCurrency } from '../../utils/formatters';
 import { Plan } from '../../types/plan';
 import { planApi } from '../../services/api/planApi';
+import { subscriptionManagementApi } from '../../services/api/subscriptionManagementApi';
+import { Subscription } from '../../types/subscription';
 import { useAuth } from '../../hooks/useAuth';
 
 export const PlansPage: React.FC = () => {
   const { user } = useAuth();
   const isAdmin = user?.role === 'Admin';
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const searchParams = new URLSearchParams(location.search);
+  const changeContext = searchParams.get('change'); // 'upgrade' | 'downgrade' | null
 
   const [plans, setPlans] = useState<Plan[]>([]);
   const [billingCycle, setBillingCycle] = useState<'Monthly' | 'Quarterly' | 'Yearly'>('Monthly');
+  const [currentSub, setCurrentSub] = useState<Subscription | null>(null);
+  const [selectedPlanForChange, setSelectedPlanForChange] = useState<Plan | null>(null);
 
   // Modals
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -60,7 +71,14 @@ export const PlansPage: React.FC = () => {
 
   useEffect(() => {
     loadPlans();
-  }, []);
+    if (user?.email) {
+      subscriptionManagementApi.getSubscriptionByEmail(user.email).then((sub) => {
+        if (sub && sub.status === 'Active') {
+          setCurrentSub(sub);
+        }
+      });
+    }
+  }, [user]);
 
   const handleOpenCreateModal = () => {
     setEditingPlan(null);
@@ -110,7 +128,6 @@ export const PlansPage: React.FC = () => {
     const pQuarterly = Number(priceQuarterly);
     const pYearly = Number(priceYearly);
 
-    // Validation rules
     if (pQuarterly <= pMonthly) {
       setValidationError(`Quarterly price (₹${pQuarterly}) must be greater than Monthly price (₹${pMonthly}).`);
       return;
@@ -194,25 +211,41 @@ export const PlansPage: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
+      {/* Active Subscription Banner for Customers */}
+      {!isAdmin && currentSub && (
+        <div className="p-4 rounded-2xl bg-primary/10 border border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Sparkles className="w-5 h-5 text-primary shrink-0" />
+            <div className="text-xs">
+              <span className="font-extrabold text-heading block">Current Active Subscription</span>
+              <span className="text-secondaryText">
+                Plan: <strong className="text-primary">{currentSub.planName}</strong> ({currentSub.billingCycle || 'Monthly'}) — {formatCurrency(currentSub.amount)}
+              </span>
+            </div>
+          </div>
+          {changeContext && (
+            <Badge variant="brand" className="text-xs py-1 px-3">
+              Mode: {changeContext.toUpperCase()} PLAN
+            </Badge>
+          )}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-extrabold text-heading flex items-center gap-2">
-            <Layers className="w-6 h-6 text-primary" />
-            Plan Management System
-          </h1>
-          <p className="text-xs text-secondaryText mt-1">
-            Configure SaaS subscription pricing tiers, customer limits, storage capacity, API access, and MRR metrics.
-          </p>
-        </div>
+        <PageHeader
+          title="Plan Management System"
+          subtitle="Configure SaaS subscription pricing tiers, customer quotas, cloud storage, API access, and MRR metrics."
+          icon={Layers}
+        />
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 bg-secondary p-1 rounded-xl border border-border">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-1 bg-secondary p-1 rounded-xl border border-border">
             <button
               type="button"
               onClick={() => setBillingCycle('Monthly')}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
-                billingCycle === 'Monthly' ? 'bg-primary text-white shadow-sm' : 'text-secondaryText hover:text-primaryText'
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                billingCycle === 'Monthly' ? 'bg-primary text-white shadow-xs' : 'text-secondaryText hover:text-heading'
               }`}
             >
               Monthly
@@ -220,20 +253,20 @@ export const PlansPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setBillingCycle('Quarterly')}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
-                billingCycle === 'Quarterly' ? 'bg-primary text-white shadow-sm' : 'text-secondaryText hover:text-primaryText'
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                billingCycle === 'Quarterly' ? 'bg-primary text-white shadow-xs' : 'text-secondaryText hover:text-heading'
               }`}
             >
-              Quarterly <span className="text-[10px] text-emerald-500 font-semibold">(Save 10%)</span>
+              Quarterly <span className="text-[10px] text-emerald-500 font-bold">(Save 10%)</span>
             </button>
             <button
               type="button"
               onClick={() => setBillingCycle('Yearly')}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
-                billingCycle === 'Yearly' ? 'bg-primary text-white shadow-sm' : 'text-secondaryText hover:text-primaryText'
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                billingCycle === 'Yearly' ? 'bg-primary text-white shadow-xs' : 'text-secondaryText hover:text-heading'
               }`}
             >
-              Yearly <span className="text-[10px] text-success font-semibold">(Save 20%)</span>
+              Yearly <span className="text-[10px] text-emerald-500 font-bold">(Save 20%)</span>
             </button>
           </div>
 
@@ -268,13 +301,16 @@ export const PlansPage: React.FC = () => {
 
           const estimatedMRR = plan.priceMonthly * (plan.activeSubscribers || 0);
           const activeState = plan.isEnabled !== false;
+          const isCurrentPlan = currentSub?.planName.toLowerCase() === plan.name.toLowerCase() && (currentSub?.billingCycle || 'Monthly') === billingCycle;
 
           return (
             <Card
               key={plan.id}
-              className={`relative flex flex-col justify-between p-6 transition-all border ${
-                plan.isPopular && activeState ? 'border-primary shadow-lg ring-1 ring-primary/20' : 'border-border'
-              } ${!activeState ? 'opacity-60 bg-slate-100/50 dark:bg-slate-900/40 grayscale-[40%]' : 'bg-card'}`}
+              className={`relative flex flex-col justify-between p-6 transition-all duration-200 border rounded-2xl ${
+                plan.isPopular && activeState
+                  ? 'border-primary/60 ring-2 ring-primary/20 shadow-md bg-surface'
+                  : 'border-border bg-card'
+              } ${!activeState ? 'opacity-60 bg-secondary/40' : ''}`}
             >
               {/* Badges Bar */}
               <div className="flex items-center justify-between gap-2 mb-3">
@@ -285,12 +321,14 @@ export const PlansPage: React.FC = () => {
                 )}
 
                 <div className="flex items-center gap-1.5">
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                    activeState
-                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400'
-                      : 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400'
-                  }`}>
-                    {activeState ? 'Enabled' : 'Disabled'}
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      activeState
+                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                        : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
+                    }`}
+                  >
+                    {activeState ? 'Active' : 'Disabled'}
                   </span>
                 </div>
               </div>
@@ -299,7 +337,7 @@ export const PlansPage: React.FC = () => {
                 {/* Name & Admin Action Icons */}
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <h3 className="text-lg font-extrabold text-heading">{plan.name}</h3>
+                    <h3 className="text-lg font-black text-heading tracking-tight">{plan.name}</h3>
                     <p className="text-xs text-secondaryText mt-1 min-h-[36px] font-medium leading-relaxed">
                       {plan.description}
                     </p>
@@ -310,8 +348,8 @@ export const PlansPage: React.FC = () => {
                         onClick={() => handleToggleEnable(plan.id)}
                         className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
                           activeState
-                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400 border-emerald-300'
-                            : 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400 border-rose-300'
+                            ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/20'
+                            : 'bg-rose-500/10 text-rose-600 border-rose-500/30 hover:bg-rose-500/20'
                         }`}
                         title={activeState ? 'Disable Plan' : 'Enable Plan'}
                       >
@@ -319,14 +357,14 @@ export const PlansPage: React.FC = () => {
                       </button>
                       <button
                         onClick={() => handleOpenEditModal(plan)}
-                        className="p-1.5 rounded-lg border border-border hover:bg-secondary text-secondaryText hover:text-primaryText transition-colors cursor-pointer"
+                        className="p-1.5 rounded-lg border border-border hover:bg-secondary text-secondaryText hover:text-heading transition-colors cursor-pointer"
                         title="Edit Plan"
                       >
                         <Edit className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => setDeleteTargetPlan(plan)}
-                        className="p-1.5 rounded-lg border border-rose-200 dark:border-rose-900 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950 transition-colors cursor-pointer"
+                        className="p-1.5 rounded-lg border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950 transition-colors cursor-pointer"
                         title="Delete Plan"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -339,7 +377,7 @@ export const PlansPage: React.FC = () => {
                 <div className="pt-3 border-t border-border space-y-2">
                   <div className="flex items-baseline justify-between">
                     <div className="flex items-baseline gap-1">
-                      <span className="text-3xl font-black text-heading">{formatCurrency(price)}</span>
+                      <span className="text-3xl font-black text-heading tracking-tight">{formatCurrency(price)}</span>
                       <span className="text-xs text-mutedText font-semibold">{priceUnit}</span>
                     </div>
                     {savingsText && (
@@ -363,24 +401,24 @@ export const PlansPage: React.FC = () => {
                 <div className="space-y-2 pt-3 border-t border-border text-xs">
                   <span className="text-[10px] font-bold text-mutedText uppercase tracking-wider block">Plan Specifications</span>
 
-                  <div className="flex items-center gap-2 text-secondaryText font-semibold">
+                  <div className="flex items-center gap-2 text-secondaryText font-medium">
                     <Users className="w-3.5 h-3.5 text-primary shrink-0" />
-                    <span>Max Customers: <strong className="text-heading">{plan.maxCustomers || '1,000 Customers'}</strong></span>
+                    <span>Max Customers: <strong className="text-heading font-semibold">{plan.maxCustomers || '1,000 Customers'}</strong></span>
                   </div>
 
-                  <div className="flex items-center gap-2 text-secondaryText font-semibold">
+                  <div className="flex items-center gap-2 text-secondaryText font-medium">
                     <HardDrive className="w-3.5 h-3.5 text-primary shrink-0" />
-                    <span>Storage: <strong className="text-heading">{plan.storage || '50 GB Storage'}</strong></span>
+                    <span>Storage: <strong className="text-heading font-semibold">{plan.storage || '50 GB Storage'}</strong></span>
                   </div>
 
-                  <div className="flex items-center gap-2 text-secondaryText font-semibold">
+                  <div className="flex items-center gap-2 text-secondaryText font-medium">
                     <Code2 className="w-3.5 h-3.5 text-primary shrink-0" />
-                    <span>API Access: <strong className="text-heading">{plan.apiAccess || 'Standard REST API'}</strong></span>
+                    <span>API Access: <strong className="text-heading font-semibold">{plan.apiAccess || 'Standard REST API'}</strong></span>
                   </div>
 
-                  <div className="flex items-center gap-2 text-secondaryText font-semibold">
+                  <div className="flex items-center gap-2 text-secondaryText font-medium">
                     <Headphones className="w-3.5 h-3.5 text-primary shrink-0" />
-                    <span>Support: <strong className="text-heading">{plan.supportLevel || '24/7 Support'}</strong></span>
+                    <span>Support: <strong className="text-heading font-semibold">{plan.supportLevel || '24/7 Support'}</strong></span>
                   </div>
                 </div>
 
@@ -390,17 +428,136 @@ export const PlansPage: React.FC = () => {
                   <ul className="space-y-2">
                     {plan.features.map((feat, idx) => (
                       <li key={idx} className="flex items-center gap-2 text-xs text-primaryText font-medium">
-                        <Check className="w-4 h-4 text-success shrink-0" />
+                        <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                         <span>{feat}</span>
                       </li>
                     ))}
                   </ul>
                 </div>
+
+                {/* Customer Select / Change Plan Action Button */}
+                {!isAdmin && (
+                  <div className="pt-4 border-t border-border">
+                    {isCurrentPlan ? (
+                      <Button variant="outline" className="w-full text-xs font-bold" disabled>
+                        Current Plan ({billingCycle})
+                      </Button>
+                    ) : (
+                      <Button
+                        variant={plan.isPopular ? 'primary' : 'outline'}
+                        className="w-full text-xs font-bold cursor-pointer"
+                        onClick={() => setSelectedPlanForChange(plan)}
+                      >
+                        {currentSub
+                          ? price > (currentSub.amount || 0)
+                            ? `Upgrade to ${plan.name}`
+                            : `Downgrade / Select ${plan.name}`
+                          : `Select ${plan.name}`}
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
             </Card>
           );
         })}
       </div>
+
+      {/* PLAN CHANGE ORDER SUMMARY MODAL */}
+      {selectedPlanForChange && (() => {
+        const newPrice = billingCycle === 'Monthly'
+          ? selectedPlanForChange.priceMonthly
+          : billingCycle === 'Quarterly'
+          ? (selectedPlanForChange.priceQuarterly || Math.round(selectedPlanForChange.priceMonthly * 3 * 0.9))
+          : selectedPlanForChange.priceYearly;
+
+        const currentPrice = currentSub ? currentSub.amount : 0;
+        const isUpgrade = !currentSub || newPrice >= currentPrice;
+        const baseAdjustment = isUpgrade ? Math.max(0, newPrice - currentPrice) : newPrice;
+        const gst = Math.round(baseAdjustment * 0.10); // 10% GST as requested in Section 8!
+        const totalPayable = baseAdjustment + gst;
+
+        return (
+          <Modal
+            isOpen={!!selectedPlanForChange}
+            onClose={() => setSelectedPlanForChange(null)}
+            title={currentSub ? 'Subscription Change Order Summary' : 'Subscription Checkout Order Summary'}
+            size="md"
+          >
+            <div className="space-y-4 text-xs">
+              {currentSub && (
+                <div className="p-3 rounded-xl bg-secondary border border-border space-y-1">
+                  <span className="text-[10px] font-bold text-mutedText uppercase tracking-wider block">Current Subscription</span>
+                  <div className="flex justify-between font-bold text-heading">
+                    <span>{currentSub.planName} ({currentSub.billingCycle || 'Monthly'})</span>
+                    <span>{formatCurrency(currentSub.amount)}</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="p-3 rounded-xl bg-primary/10 border border-primary/20 space-y-1">
+                <span className="text-[10px] font-bold text-primary uppercase tracking-wider block">Selected New Subscription</span>
+                <div className="flex justify-between font-extrabold text-heading">
+                  <span>{selectedPlanForChange.name} ({billingCycle})</span>
+                  <span className="text-primary">{formatCurrency(newPrice)}</span>
+                </div>
+              </div>
+
+              <div className="space-y-2 pt-2 border-t border-border text-xs">
+                <div className="flex justify-between text-secondaryText">
+                  <span>Base Price Adjustment</span>
+                  <span className="font-bold text-heading">{formatCurrency(baseAdjustment)}</span>
+                </div>
+                <div className="flex justify-between text-secondaryText">
+                  <span>GST (10%)</span>
+                  <span className="font-bold text-heading">{formatCurrency(gst)}</span>
+                </div>
+                <div className="flex justify-between font-black text-sm text-heading pt-2 border-t border-border">
+                  <span>Total Amount Payable</span>
+                  <span className="text-primary text-base">{formatCurrency(totalPayable)}</span>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-border">
+                <Button variant="outline" size="sm" onClick={() => setSelectedPlanForChange(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  rightIcon={<ArrowRight className="w-4 h-4" />}
+                  onClick={() => {
+                    const targetPlan = selectedPlanForChange;
+                    const calc = {
+                      newSubscriptionValue: newPrice,
+                      unusedValue: currentPrice,
+                      adjustment: baseAdjustment,
+                      gst,
+                      totalPayable,
+                      isUpgrade,
+                      isDowngrade: !isUpgrade && currentPrice > 0,
+                      currentPlanName: currentSub?.planName || null,
+                      targetPlanName: targetPlan.name,
+                      billingCycle,
+                    };
+                    setSelectedPlanForChange(null);
+                    navigate('/customer/payment', {
+                      state: {
+                        plan: targetPlan,
+                        billingCycle,
+                        calculation: calc,
+                      },
+                    });
+                  }}
+
+                >
+                  Proceed to Payment
+                </Button>
+              </div>
+            </div>
+          </Modal>
+        );
+      })()}
 
       {/* CREATE / EDIT PLAN MODAL */}
       <Modal

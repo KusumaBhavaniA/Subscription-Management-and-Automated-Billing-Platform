@@ -1,7 +1,8 @@
 import { RegisterCustomerDTO, OTPVerificationDTO, AuthSession, SocialProvider, User } from '../../types/auth';
 import { apiFetch, apiUrl } from './client';
 import { ENABLED_OAUTH_PROVIDERS } from '../../config/authConfig';
-import { STORAGE_KEYS, getItem } from '../../utils/storage';
+import { STORAGE_KEYS } from '../../utils/storage';
+
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -36,7 +37,7 @@ const request = async <T>(path: string, options: RequestInit = {}): Promise<ApiR
 export const authApi = {
   getOAuthLoginUrl: (provider: SocialProvider): string => {
     if (!ENABLED_OAUTH_PROVIDERS[provider]) {
-      console.warn(`OAuth provider ${provider} is disabled (Coming Soon).`);
+      console.warn(`OAuth provider ${provider} is disabled (Coming Soon). Prevents navigation.`);
       return '#';
     }
     switch (provider) {
@@ -47,27 +48,14 @@ export const authApi = {
       case 'Apple':
         return apiUrl('/auth/apple/login');
     }
-    return '#';
   },
 
   register: async (payload: RegisterCustomerDTO): Promise<ApiResponse<{ email: string }>> => {
-    const res = await request('/auth/register', { method: 'POST', body: JSON.stringify(payload) });
-    if (res.success) return res;
-    return {
-      success: true,
-      message: 'Verification code sent to your email address.',
-      data: { email: payload.email.toLowerCase().trim() },
-    };
+    return request('/auth/register', { method: 'POST', body: JSON.stringify(payload) });
   },
 
   verifyOTP: async (payload: OTPVerificationDTO): Promise<ApiResponse<{ verified: boolean }>> => {
-    const res = await request('/auth/verify-otp', { method: 'POST', body: JSON.stringify(payload) });
-    if (res.success) return res;
-    return {
-      success: true,
-      message: 'Account verified successfully.',
-      data: { verified: true },
-    };
+    return request('/auth/verify-otp', { method: 'POST', body: JSON.stringify(payload) });
   },
 
   verifyOtp: async (payload: OTPVerificationDTO): Promise<ApiResponse<{ verified: boolean }>> => {
@@ -75,13 +63,7 @@ export const authApi = {
   },
 
   resendOTP: async (payload: { email: string }): Promise<ApiResponse<{ otpSent: boolean }>> => {
-    const res = await request('/auth/resend-otp', { method: 'POST', body: JSON.stringify(payload) });
-    if (res.success) return res;
-    return {
-      success: true,
-      message: 'A new verification code has been sent.',
-      data: { otpSent: true },
-    };
+    return request('/auth/resend-otp', { method: 'POST', body: JSON.stringify(payload) });
   },
 
   resendOtp: async (payload: { email: string }): Promise<ApiResponse<{ otpSent: boolean }>> => {
@@ -89,113 +71,27 @@ export const authApi = {
   },
 
   login: async (payload: { fullName?: string; email: string; password: string }): Promise<ApiResponse<AuthSession>> => {
-    const response = await request('/auth/login', {
+    return request('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email: payload.email, password: payload.password }),
+    }).then((response: any) => {
+      if (response.success && response.data?.access_token && response.data?.user) {
+        return { ...response, data: { user: response.data.user, token: response.data.access_token } };
+      }
+      return response;
     });
+  },
 
-    if (response.success && response.data?.access_token && response.data?.user) {
-      return { ...response, data: { user: response.data.user, token: response.data.access_token } };
-    }
-
-    const cleanEmail = payload.email.trim().toLowerCase();
-
-    // Check hardcoded admin
-    if (cleanEmail === 'admin@billingplatform.com') {
-      const adminUser: User = {
-        id: 'usr-admin-001',
-        customerId: 'ADM-2026-000001',
-        fullName: 'System Administrator',
-        firstName: 'System',
-        lastName: 'Administrator',
-        email: cleanEmail,
-        role: 'Admin',
-        createdAt: new Date().toISOString(),
-        status: 'Verified',
-        accountStatus: 'ACTIVE',
-      };
-      return {
-        success: true,
-        message: 'Admin authenticated successfully.',
-        data: {
-          token: `mock-admin-token-${Date.now()}`,
-          user: adminUser,
-        },
-      };
-    }
-
-    // Check localStorage users
-    const users = getItem<any[]>(STORAGE_KEYS.USERS, []);
-    const localUser = users.find((u) => u.email?.toLowerCase() === cleanEmail);
-
-    if (localUser) {
-      const { passwordHash, ...userObj } = localUser;
-      return {
-        success: true,
-        message: 'Authenticated successfully.',
-        data: {
-          token: `mock-user-token-${Date.now()}`,
-          user: userObj,
-        },
-      };
-    }
-
-    // Check localStorage customers
-    const customers = getItem<any[]>(STORAGE_KEYS.CUSTOMERS, []);
-    const localCust = customers.find((c) => c.email?.toLowerCase() === cleanEmail);
-
-    if (localCust) {
-      const custUser: User = {
-        id: localCust.id || `usr-cust-${Date.now()}`,
-        customerId: localCust.customerId || 'CUS-2026-000001',
-        fullName: localCust.name,
-        firstName: localCust.firstName || localCust.name.split(' ')[0],
-        lastName: localCust.lastName || localCust.name.split(' ').slice(1).join(' '),
-        email: cleanEmail,
-        phoneNumber: localCust.phone || '',
-        country: localCust.country || 'India',
-        role: 'Customer',
-        createdAt: localCust.joinedDate || new Date().toISOString(),
-        status: localCust.status || 'Verified',
-        accountStatus: localCust.accountStatus || (localCust.status === 'Suspended' ? 'SUSPENDED' : 'ACTIVE'),
-        currentPlan: localCust.subscriptionPlan || 'Starter',
-        subscriptionStatus: localCust.subscriptionStatus || 'Active',
-      };
-
-      return {
-        success: true,
-        message: 'Authenticated successfully.',
-        data: {
-          token: `mock-user-token-${Date.now()}`,
-          user: custUser,
-        },
-      };
-    }
-
-    // Default fallback user if no matching user found
-    const defaultUser: User = {
-      id: `usr-cust-${Date.now()}`,
-      customerId: `CUS-2026-${Math.floor(100000 + Math.random() * 900000)}`,
-      fullName: payload.fullName || cleanEmail.split('@')[0],
-      firstName: cleanEmail.split('@')[0],
-      lastName: '',
-      email: cleanEmail,
-      role: 'Customer',
-      createdAt: new Date().toISOString(),
-      status: 'Verified',
-      accountStatus: 'ACTIVE',
-      currentPlan: 'Starter',
-      subscriptionStatus: 'Active',
-    };
-
-    return {
-      success: true,
-      message: 'Authenticated successfully.',
-      data: {
-        token: `mock-user-token-${Date.now()}`,
-        user: defaultUser,
-      },
-    };
+  socialLogin: async (payload: { email: string; fullName?: string; provider?: string }): Promise<ApiResponse<AuthSession>> => {
+    return request('/auth/social-login', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }).then((response: any) => {
+      if (response.success && response.data?.access_token && response.data?.user) {
+        return { ...response, data: { user: response.data.user, token: response.data.access_token } };
+      }
+      return response;
+    });
   },
 
   googleLogin: async (payload: { token?: string }): Promise<ApiResponse<{ provider: 'Google' }>> => {
@@ -207,7 +103,7 @@ export const authApi = {
       });
       const data = await response.json();
       return data;
-    } catch {
+    } catch (err) {
       return {
         success: true,
         message: 'Authenticated with Google successfully.',
@@ -232,7 +128,7 @@ export const authApi = {
       });
       const data = await response.json();
       return data;
-    } catch {
+    } catch (err) {
       return {
         success: true,
         message: 'Authenticated with Microsoft successfully.',
@@ -257,7 +153,7 @@ export const authApi = {
       });
       const data = await response.json();
       return data;
-    } catch {
+    } catch (err) {
       return {
         success: true,
         message: 'Authenticated with Apple successfully.',
@@ -275,7 +171,7 @@ export const authApi = {
       });
       const data = await response.json();
       return data;
-    } catch {
+    } catch (err) {
       return {
         success: true,
         message: `${payload.provider} connected successfully.`,
@@ -293,7 +189,7 @@ export const authApi = {
       });
       const data = await response.json();
       return data;
-    } catch {
+    } catch (err) {
       return {
         success: true,
         message: `${payload.provider} disconnected successfully.`,
@@ -307,26 +203,28 @@ export const authApi = {
   },
 
   resetPassword: async (payload: { token: string; newPassword: string }): Promise<ApiResponse<{ reset: boolean }>> => {
-    const res = await request('/auth/reset-password', { method: 'POST', body: JSON.stringify(payload) });
-    if (res.success) return res;
-    return {
-      success: true,
-      message: 'Your password has been reset successfully.',
-      data: { reset: true },
-    };
+    return request('/auth/reset-password', { method: 'POST', body: JSON.stringify(payload) });
   },
 
   logout: async (token?: string): Promise<ApiResponse<{ loggedOut: boolean }>> => {
-    const res = await request('/auth/logout', {
+    let activeToken = token;
+    if (!activeToken) {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEYS.AUTH);
+        if (raw) {
+          if (raw.startsWith('{')) {
+            const parsed = JSON.parse(raw);
+            activeToken = parsed.token || parsed.access_token || parsed.user?.token || undefined;
+          } else {
+            activeToken = raw;
+          }
+        }
+      } catch {}
+    }
+    return request('/auth/logout', {
       method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      headers: activeToken ? { Authorization: `Bearer ${activeToken}` } : undefined,
     });
-    if (res.success) return res;
-    return {
-      success: true,
-      message: 'Logged out successfully.',
-      data: { loggedOut: true },
-    };
   },
 
   notifyProfileIncomplete: async (payload: { email: string; fullName: string; missingFields: string[] }): Promise<ApiResponse<{ emailSent: boolean }>> => {
@@ -338,30 +236,37 @@ export const authApi = {
       });
       const data = await response.json();
       return data;
-    } catch {
+    } catch (err) {
       return {
         success: true,
-        message: 'Profile incomplete notification created.',
+        message: 'Profile incomplete notification queued successfully.',
         data: { emailSent: true },
       };
     }
   },
 
   getMe: async (token: string): Promise<ApiResponse<User>> => {
-    const res = await request('/auth/me', { headers: { Authorization: `Bearer ${token}` } });
-    if (res.success && res.data) return res;
+    return request('/auth/me', { headers: { Authorization: `Bearer ${token}` } });
+  },
 
-    const currentSession = getItem<any>(STORAGE_KEYS.AUTH, null);
-    if (currentSession && currentSession.user) {
-      return {
-        success: true,
-        message: 'Current session user fetched.',
-        data: currentSession.user,
-      };
-    }
-    return {
-      success: false,
-      message: 'No active session',
-    };
+  updateProfile: async (payload: Partial<User>): Promise<ApiResponse<User>> => {
+    let activeToken = undefined;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.AUTH);
+      if (raw) {
+        if (raw.startsWith('{')) {
+          const parsed = JSON.parse(raw);
+          activeToken = parsed.token || parsed.access_token || parsed.user?.token || undefined;
+        } else {
+          activeToken = raw;
+        }
+      }
+    } catch {}
+
+    return request('/auth/profile', {
+      method: 'PUT',
+      headers: activeToken ? { Authorization: `Bearer ${activeToken}` } : undefined,
+      body: JSON.stringify(payload),
+    });
   },
 };

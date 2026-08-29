@@ -5,8 +5,11 @@ const getAuthToken = (): string | null => {
   try {
     const item = localStorage.getItem(STORAGE_KEYS.AUTH);
     if (!item) return null;
-    const parsed = JSON.parse(item);
-    return parsed.token || parsed.access_token || null;
+    if (item.startsWith('{')) {
+      const parsed = JSON.parse(item);
+      return parsed.token || parsed.access_token || parsed.user?.token || null;
+    }
+    return item;
   } catch {
     return null;
   }
@@ -21,7 +24,7 @@ export const syncUserAndAuthStatus = (
 ) => {
   const cleanEmail = email.toLowerCase();
 
-  // Sync USERS array in localStorage
+  // Sync USERS array
   const users = getItem<any[]>(STORAGE_KEYS.USERS, []);
   const userIdx = users.findIndex((u) => u.email?.toLowerCase() === cleanEmail);
   if (userIdx !== -1) {
@@ -69,10 +72,10 @@ export const customerApi = {
               status: u.status || (u.isVerified ? 'Verified' : 'Pending'),
               accountStatus: u.accountStatus || 'ACTIVE',
               isVerified: u.isVerified,
-              subscriptionPlan: u.subscriptionPlan || u.currentPlan || 'Starter',
-              subscriptionStatus: u.subscriptionStatus || 'Active',
-              mrr: u.mrr || 4999,
-              totalSpent: u.totalSpent || 0,
+              subscriptionPlan: u.subscriptionPlan || u.currentPlan || 'No active plan',
+              subscriptionStatus: u.subscriptionStatus || 'Inactive',
+              mrr: u.mrr ?? 0,
+              totalSpent: u.totalSpent ?? 0,
               joinedDate: u.joinedDate || u.createdAt?.split('T')[0] || new Date().toISOString().split('T')[0],
               registrationDate: u.registrationDate,
               country: u.country || 'India',
@@ -86,47 +89,19 @@ export const customerApi = {
           }
         }
       }
+      return [];
     } catch (err) {
-      console.warn('Backend customer list fetch failed, falling back to local storage:', err);
+      console.warn('Backend customer list fetch failed:', err);
+      return [];
     }
-
-    // Fallback using LocalStorage
-    const list = getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
-
-    if (filterTab === 'active') {
-      return list.filter(
-        (c) =>
-          c.isVerified !== false &&
-          c.status !== 'Pending Verification' &&
-          c.status !== 'Pending' &&
-          c.accountStatus !== 'SUSPENDED' &&
-          c.accountStatus !== 'DELETED' &&
-          !c.deletedAt
-      );
-    } else if (filterTab === 'suspended') {
-      return list.filter((c) => c.accountStatus === 'SUSPENDED' || c.status === 'Suspended');
-    } else if (filterTab === 'deleted') {
-      return list.filter((c) => c.accountStatus === 'DELETED' || !!c.deletedAt);
-    }
-    return list;
   },
 
   getCustomerById: async (id: string): Promise<Customer | null> => {
-    const list = getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
-    const cleanId = id.trim().toLowerCase();
-    const found = list.find(
-      (c) =>
-        c.id?.toLowerCase() === cleanId ||
-        c.customerId?.toLowerCase() === cleanId ||
-        c.email?.toLowerCase() === cleanId
-    );
-    if (found) return found;
-
     const active = await customerApi.getCustomers('active');
     const suspended = await customerApi.getCustomers('suspended');
     const deleted = await customerApi.getCustomers('deleted');
     const all = [...active, ...suspended, ...deleted];
-    return all.find((c) => c.id?.toLowerCase() === cleanId || c.customerId?.toLowerCase() === cleanId || c.email?.toLowerCase() === cleanId) || null;
+    return all.find((c) => c.id === id || c.customerId === id || c.email?.toLowerCase() === id.toLowerCase()) || null;
   },
 
   /**
@@ -151,13 +126,7 @@ export const customerApi = {
 
     // Sync LocalStorage
     const list = getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
-    const idx = list.findIndex(
-      (c) =>
-        c.id === customerId ||
-        c.customerId === customerId ||
-        c.email?.toLowerCase() === customerId.toLowerCase()
-    );
-
+    const idx = list.findIndex((c) => c.id === customerId || c.customerId === customerId || c.email?.toLowerCase() === customerId.toLowerCase());
     if (idx !== -1) {
       list[idx].accountStatus = 'SUSPENDED';
       list[idx].status = 'Suspended';
@@ -189,17 +158,10 @@ export const customerApi = {
 
     // Sync LocalStorage
     const list = getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
-    const idx = list.findIndex(
-      (c) =>
-        c.id === customerId ||
-        c.customerId === customerId ||
-        c.email?.toLowerCase() === customerId.toLowerCase()
-    );
-
+    const idx = list.findIndex((c) => c.id === customerId || c.customerId === customerId || c.email?.toLowerCase() === customerId.toLowerCase());
     if (idx !== -1) {
       list[idx].accountStatus = 'ACTIVE';
       list[idx].status = 'Verified';
-      list[idx].isVerified = true;
       list[idx].deletedAt = null;
       list[idx].deletedBy = null;
       list[idx].suspendedAt = null;
@@ -231,30 +193,17 @@ export const customerApi = {
 
     // Sync LocalStorage
     const list = getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
-    const idx = list.findIndex(
-      (c) =>
-        c.id === customerId ||
-        c.customerId === customerId ||
-        c.email?.toLowerCase() === customerId.toLowerCase()
-    );
-
+    const idx = list.findIndex((c) => c.id === customerId || c.customerId === customerId);
     if (idx !== -1) {
       list[idx].accountStatus = 'DELETED';
       list[idx].deletedAt = new Date().toISOString();
       setItem(STORAGE_KEYS.CUSTOMERS, list);
-      syncUserAndAuthStatus(list[idx].email, 'DELETED', 'Inactive');
     }
   },
 
   assignPlan: async (customerId: string, planName: string, mrr: number): Promise<Customer> => {
     const list = getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
-    const idx = list.findIndex(
-      (c) =>
-        c.id === customerId ||
-        c.customerId === customerId ||
-        c.email?.toLowerCase() === customerId.toLowerCase()
-    );
-
+    const idx = list.findIndex((c) => c.id === customerId || c.customerId === customerId);
     if (idx === -1) throw new Error('Customer not found');
 
     list[idx].subscriptionPlan = planName;

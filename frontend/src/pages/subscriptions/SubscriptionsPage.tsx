@@ -16,6 +16,10 @@ import { Button } from '../../components/common/Button';
 import { Modal } from '../../components/common/Modal';
 import { Select } from '../../components/common/Select';
 import { Toast } from '../../components/common/Toast';
+import { PageHeader } from '../../components/common/PageHeader';
+import { EmptyState } from '../../components/common/EmptyState';
+import { SearchInput } from '../../components/common/SearchInput';
+import { Avatar } from '../../components/common/Avatar';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { Subscription, SubscriptionStatus, BillingCycle } from '../../types/subscription';
 import { subscriptionManagementApi } from '../../services/api/subscriptionManagementApi';
@@ -56,15 +60,26 @@ export const SubscriptionsPage: React.FC = () => {
   const [customReasonDetails, setCustomReasonDetails] = useState('');
   const [isCancelling, setIsCancelling] = useState(false);
 
+  // Upgrade Modal State
+  const [upgradeTargetSub, setUpgradeTargetSub] = useState<Subscription | null>(null);
+  const [isUpgrading, setIsUpgrading] = useState(false);
+
+  // Downgrade Modal State
+  const [downgradeTargetSub, setDowngradeTargetSub] = useState<Subscription | null>(null);
+  const [isDowngrading, setIsDowngrading] = useState(false);
+
   const loadData = async () => {
-    const list = await subscriptionManagementApi.getSubscriptions();
-    setSubscriptions(list);
     if (isAdmin) {
+      const list = await subscriptionManagementApi.getSubscriptions();
+      setSubscriptions(list);
       const custs = await customerApi.getCustomers();
       setCustomers(custs);
       if (custs.length > 0 && !selectedCustEmail) {
         setSelectedCustEmail(custs[0].email);
       }
+    } else {
+      const mySub = await subscriptionManagementApi.getMySubscription();
+      setSubscriptions(mySub ? [mySub] : []);
     }
   };
 
@@ -100,37 +115,29 @@ export const SubscriptionsPage: React.FC = () => {
     }
   };
 
-  const handleUpgrade = async (sub: Subscription) => {
+  const handleOpenUpgradeModal = (sub: Subscription) => {
     if (isSuspended) {
       setIsSuspendedModalOpen(true);
       return;
     }
-    setIsLoading(true);
-    try {
-      await subscriptionManagementApi.upgradeSubscription(sub.id, 'Enterprise Scale');
-      await loadData();
-      setToastMessage('Subscription upgraded to Enterprise Scale!');
-      setToastType('success');
-      setShowToast(true);
-    } catch (err: any) {
-      console.error(err);
-      setToastMessage('Upgrade failed.');
-      setToastType('error');
-      setShowToast(true);
-    } finally {
-      setIsLoading(false);
-    }
+    navigate('/customer/plans?change=upgrade');
   };
 
-  const handleDowngrade = async (sub: Subscription) => {
+  const handleOpenDowngradeModal = (sub: Subscription) => {
     if (isSuspended) {
       setIsSuspendedModalOpen(true);
       return;
     }
-    setIsLoading(true);
+    navigate('/customer/plans?change=downgrade');
+  };
+
+  const handleConfirmDowngrade = async () => {
+    if (!downgradeTargetSub) return;
+    setIsDowngrading(true);
     try {
-      await subscriptionManagementApi.downgradeSubscription(sub.id, 'Starter Tier');
+      await subscriptionManagementApi.downgradeSubscription(downgradeTargetSub.id, 'Starter Tier');
       await loadData();
+      setDowngradeTargetSub(null);
       setToastMessage('Subscription downgraded to Starter Tier.');
       setToastType('success');
       setShowToast(true);
@@ -140,11 +147,10 @@ export const SubscriptionsPage: React.FC = () => {
       setToastType('error');
       setShowToast(true);
     } finally {
-      setIsLoading(false);
+      setIsDowngrading(false);
     }
   };
 
-  // Open Custom Cancellation Confirmation Modal (No window.confirm!)
   const handleOpenCancelModal = (sub: Subscription) => {
     if (isSuspended) {
       setIsSuspendedModalOpen(true);
@@ -159,16 +165,16 @@ export const SubscriptionsPage: React.FC = () => {
     if (!cancelTargetSub) return;
     setIsCancelling(true);
     try {
-      await subscriptionManagementApi.cancelSubscription(cancelTargetSub.id);
+      const res = await subscriptionManagementApi.cancelSubscription(cancelTargetSub.id);
       await loadData();
       setCancelTargetSub(null);
 
-      setToastMessage('Your subscription has been cancelled successfully.');
+      setToastMessage(`Your subscription has been cancelled. Prorated refund of ${formatCurrency(res.refundAmount)} processed.`);
       setToastType('success');
       setShowToast(true);
     } catch (err: any) {
       console.error(err);
-      setToastMessage('Failed to cancel subscription.');
+      setToastMessage(err.message || 'Failed to cancel subscription.');
       setToastType('error');
       setShowToast(true);
     } finally {
@@ -207,8 +213,11 @@ export const SubscriptionsPage: React.FC = () => {
     return matchesRole && matchesSearch;
   });
 
-  const getStatusBadge = (st: SubscriptionStatus) => {
-    switch (st) {
+  const getStatusBadge = (sub: Subscription) => {
+    if (sub.cancelAtPeriodEnd || (sub as any).cancel_at_period_end) {
+      return <Badge variant="warning">Cancellation Scheduled</Badge>;
+    }
+    switch (sub.status) {
       case 'Active':
         return <Badge variant="success">Active</Badge>;
       case 'Inactive':
@@ -216,6 +225,7 @@ export const SubscriptionsPage: React.FC = () => {
       case 'Expired':
         return <Badge variant="warning">Expired</Badge>;
       case 'Cancelled':
+      case 'canceled':
         return <Badge variant="danger">Cancelled</Badge>;
       default:
         return <Badge variant="neutral">Inactive</Badge>;
@@ -225,17 +235,11 @@ export const SubscriptionsPage: React.FC = () => {
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-extrabold text-heading flex items-center gap-2">
-            <CreditCard className="w-6 h-6 text-primary" />
-            {isAdmin ? 'Subscription Lifecycle Operations' : 'My Active Subscription'}
-          </h1>
-          <p className="text-xs text-secondaryText mt-1">
-            Independent SaaS subscription management. Assign plans, upgrade/downgrade tiers, cancel, or renew subscriptions.
-          </p>
-        </div>
-
+      <PageHeader
+        title={isAdmin ? 'Subscription Lifecycle Operations' : 'My Active Subscription'}
+        subtitle="Independent SaaS subscription management. Assign plans, upgrade/downgrade tiers, cancel, or renew subscriptions."
+        icon={CreditCard}
+      >
         {isAdmin && (
           <Button
             variant="primary"
@@ -246,7 +250,7 @@ export const SubscriptionsPage: React.FC = () => {
             Assign Subscription
           </Button>
         )}
-      </div>
+      </PageHeader>
 
       {/* SUSPENSION WARNING BANNER */}
       {isSuspended && (
@@ -270,98 +274,119 @@ export const SubscriptionsPage: React.FC = () => {
 
       {/* Search & Counter */}
       <Card className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-mutedText" />
-          <input
-            type="text"
+        <div className="flex-1 max-w-md w-full">
+          <SearchInput
             placeholder="Search subscriptions by subscriber or plan..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-input border border-border rounded-xl text-xs text-primaryText focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary font-medium"
+            onClear={() => setSearch('')}
           />
         </div>
-        <div className="text-xs text-secondaryText font-semibold">
+        <div className="text-xs text-secondaryText font-medium">
           Showing <span className="text-heading font-extrabold">{displaySubs.length}</span> subscriptions
         </div>
       </Card>
 
       {/* Subscriptions Table */}
-      <Card space-y-4>
+      <Card className="p-0 overflow-hidden border border-border">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="border-b border-border text-mutedText uppercase tracking-wider bg-tableHeader">
-                <th className="p-3 font-semibold">Subscriber</th>
-                <th className="p-3 font-semibold">Allocated Plan</th>
-                <th className="p-3 font-semibold">Billing Frequency</th>
-                <th className="p-3 font-semibold">Price / MRR</th>
-                <th className="p-3 font-semibold">Subscription Status</th>
-                <th className="p-3 font-semibold">Next Renewal</th>
-                <th className="p-3 font-semibold text-right">Actions</th>
+              <tr className="border-b border-border text-mutedText text-[11px] uppercase tracking-wider bg-tableHeader">
+                <th className="py-3 px-4 font-bold">Subscriber</th>
+                <th className="py-3 px-4 font-bold">Allocated Plan</th>
+                <th className="py-3 px-4 font-bold">Billing Frequency</th>
+                <th className="py-3 px-4 font-bold text-right">Price / MRR</th>
+                <th className="py-3 px-4 font-bold text-center">Subscription Status</th>
+                <th className="py-3 px-4 font-bold">Next Renewal</th>
+                <th className="py-3 px-4 font-bold text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {displaySubs.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-mutedText font-medium">
-                    No active or historical subscriptions found.
+                  <td colSpan={7} className="p-8">
+                    <EmptyState
+                      icon={CreditCard}
+                      title="No Subscriptions Found"
+                      description={
+                        isAdmin
+                          ? 'No subscription records match your search query.'
+                          : 'No active or historical subscriptions found for your account.'
+                      }
+                      actionLabel={isAdmin ? 'Assign Subscription' : 'Browse Plans'}
+                      onAction={
+                        isAdmin
+                          ? () => setIsAssignModalOpen(true)
+                          : () => navigate('/customer/plans')
+                      }
+                    />
                   </td>
                 </tr>
               ) : (
                 displaySubs.map((sub) => (
                   <tr key={sub.id} className="hover:bg-tableHover transition-colors">
-                    <td className="p-3 font-bold text-heading">
-                      {sub.customerName}
-                      <div className="text-[10px] text-mutedText font-medium">{sub.customerEmail}</div>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-2.5">
+                        <Avatar name={sub.customerName} size="sm" />
+                        <div>
+                          <span className="font-bold text-heading block">{sub.customerName}</span>
+                          <span className="text-[10px] text-mutedText font-mono">{sub.customerEmail}</span>
+                        </div>
+                      </div>
                     </td>
-                    <td className="p-3 font-extrabold text-primaryText">{sub.planName}</td>
-                    <td className="p-3 text-secondaryText font-semibold">{sub.billingCycle}</td>
-                    <td className="p-3 font-black text-emerald-600 dark:text-emerald-400">
+                    <td className="py-3 px-4 font-extrabold text-heading">
+                      <span className="px-2 py-0.5 rounded-lg bg-secondary text-primary font-semibold text-[11px]">
+                        {sub.planName}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-secondaryText font-medium">{sub.billingCycle}</td>
+                    <td className="py-3 px-4 font-black text-right text-emerald-600 dark:text-emerald-400 font-mono">
                       {formatCurrency(sub.amount)}
                     </td>
-                    <td className="p-3">{getStatusBadge(sub.status)}</td>
-                    <td className="p-3 text-mutedText font-medium">{formatDate(sub.nextBillingDate)}</td>
+                    <td className="py-3 px-4 text-center">{getStatusBadge(sub)}</td>
+                    <td className="py-3 px-4 text-mutedText">{formatDate(sub.nextBillingDate)}</td>
 
                     {/* Actions Toolbar */}
-                    <td className="p-3 text-right">
-                      <div className="inline-flex items-center gap-1 justify-end">
+                    <td className="py-3 px-4 text-right">
+                      <div className="inline-flex items-center gap-1.5 justify-end">
                         {sub.status === 'Active' ? (
                           <>
                             <button
-                              onClick={() => handleUpgrade(sub)}
-                              className="p-1.5 rounded-lg border border-border hover:bg-secondary text-emerald-600 dark:text-emerald-400 font-bold transition-colors cursor-pointer flex items-center gap-1 text-[11px]"
-                              title="Upgrade to Enterprise Scale"
+                              onClick={() => handleOpenUpgradeModal(sub)}
+                              className="px-2.5 py-1 rounded-lg border border-border hover:bg-secondary text-emerald-600 dark:text-emerald-400 font-bold transition-colors cursor-pointer flex items-center gap-1 text-[11px]"
+                              title="Upgrade Plan"
                             >
                               <TrendingUp className="w-3.5 h-3.5" />
-                              <span className="hidden sm:inline">Upgrade</span>
+                              <span>Upgrade</span>
                             </button>
 
                             <button
-                              onClick={() => handleDowngrade(sub)}
-                              className="p-1.5 rounded-lg border border-border hover:bg-secondary text-amber-600 dark:text-amber-400 font-bold transition-colors cursor-pointer flex items-center gap-1 text-[11px]"
-                              title="Downgrade to Starter Tier"
+                              onClick={() => handleOpenDowngradeModal(sub)}
+                              className="px-2.5 py-1 rounded-lg border border-border hover:bg-secondary text-amber-600 dark:text-amber-400 font-bold transition-colors cursor-pointer flex items-center gap-1 text-[11px]"
+                              title="Downgrade Plan"
                             >
                               <TrendingDown className="w-3.5 h-3.5" />
-                              <span className="hidden sm:inline">Downgrade</span>
+                              <span>Downgrade</span>
                             </button>
 
                             <button
                               onClick={() => handleOpenCancelModal(sub)}
-                              className="p-1.5 rounded-lg border border-rose-200 dark:border-rose-900 hover:bg-rose-50 text-rose-600 font-bold transition-colors cursor-pointer flex items-center gap-1 text-[11px]"
+                              className="px-2.5 py-1 rounded-lg border border-rose-200 dark:border-rose-900 hover:bg-rose-50 dark:hover:bg-rose-950 text-rose-600 dark:text-rose-400 font-bold transition-colors cursor-pointer flex items-center gap-1 text-[11px]"
                               title="Cancel Subscription"
                             >
                               <XCircle className="w-3.5 h-3.5" />
-                              <span className="hidden sm:inline">Cancel</span>
+                              <span>Cancel</span>
                             </button>
                           </>
                         ) : (
                           <button
                             onClick={() => handleRenew(sub)}
-                            className="p-1.5 rounded-lg border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 font-bold transition-colors cursor-pointer flex items-center gap-1 text-[11px]"
+                            className="px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 font-bold transition-colors cursor-pointer flex items-center gap-1 text-[11px]"
                             title="Renew Subscription"
                           >
                             <RefreshCw className="w-3.5 h-3.5" />
-                            <span>Renew Subscription</span>
+                            <span>Renew</span>
                           </button>
                         )}
                       </div>
@@ -459,7 +484,7 @@ export const SubscriptionsPage: React.FC = () => {
                 </div>
                 <div>
                   <span className="text-mutedText font-semibold block text-[10px]">Current Status</span>
-                  {getStatusBadge(cancelTargetSub.status)}
+                  {getStatusBadge(cancelTargetSub)}
                 </div>
                 <div>
                   <span className="text-mutedText font-semibold block text-[10px]">Billing Cycle</span>

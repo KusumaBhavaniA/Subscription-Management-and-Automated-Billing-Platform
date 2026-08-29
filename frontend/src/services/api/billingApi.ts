@@ -69,109 +69,240 @@ const hasActiveSubscriptionPlan = (planName?: string): boolean => {
   return !!planName && planName !== 'None' && planName !== 'No active plan';
 };
 
+const getAuthToken = (): string | null => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.AUTH);
+    if (!raw) return null;
+    if (raw.startsWith('{')) {
+      const parsed = JSON.parse(raw);
+      return parsed.token || parsed.access_token || parsed.user?.token || null;
+    }
+    return raw;
+  } catch {
+    return null;
+  }
+};
+
+export interface BillingCalculationResult {
+  success: boolean;
+  current_plan_name: string | null;
+  current_subscription_value: number;
+  new_plan_name: string;
+  billing_cycle: string;
+  new_subscription_value: number;
+  unused_value: number;
+  upgrade_adjustment: number;
+  downgrade_adjustment: number;
+  is_upgrade: boolean;
+  is_downgrade: boolean;
+  gst_rate: number;
+  gst_amount: number;
+  total_payable: number;
+}
+
 export const billingApi = {
+  /**
+   * Authoritative Admin Dashboard statistics directly computed from backend SQLite database.
+   */
+  getAdminDashboardStats: async () => {
+    const token = getAuthToken();
+    try {
+      const res = await fetch('http://localhost:8000/admin/dashboard/stats', {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.stats) {
+          return data.stats;
+        }
+      }
+    } catch (e) {
+      console.warn('GET /admin/dashboard/stats error:', e);
+    }
+    return {
+      totalCustomers: 0,
+      activeCustomers: 0,
+      activeSubscriptions: 0,
+      totalMRR: 0,
+      totalRevenue: 0,
+      pendingInvoices: 0,
+      openTickets: 0,
+      recentCustomers: [],
+      recentInvoices: [],
+      recentTickets: [],
+    };
+  },
+
+  /**
+   * Authoritative SaaS Financial Analytics directly from backend SQLite database.
+   */
+  getAdminAnalytics: async () => {
+    const token = getAuthToken();
+    try {
+      const res = await fetch('http://localhost:8000/admin/analytics', {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.analytics) {
+          return data.analytics;
+        }
+      }
+    } catch (e) {
+      console.warn('GET /admin/analytics error:', e);
+    }
+    return {
+      arpu: 0,
+      ltv: 0,
+      churnRate: 0,
+      totalMRR: 0,
+      activeCustomers: 0,
+      tierBreakdown: [],
+    };
+  },
+
+  /**
+   * Authoritative Admin Reports Summary directly from backend SQLite database.
+   */
+  getAdminReportsSummary: async () => {
+    const token = getAuthToken();
+    try {
+      const res = await fetch('http://localhost:8000/admin/reports/summary', {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.reports) {
+          return data.reports;
+        }
+      }
+    } catch (e) {
+      console.warn('GET /admin/reports/summary error:', e);
+    }
+    return {
+      totalRevenue: 0,
+      pendingRevenue: 0,
+      monthlyMRR: 0,
+      paidInvoicesCount: 0,
+      pendingInvoicesCount: 0,
+      totalInvoicesCount: 0,
+    };
+  },
+
+  /**
+   * Central single source of truth for billing calculation from backend.
+   */
+  calculateBilling: async (
+    targetPlanName: string,
+    billingCycle: string = 'Monthly',
+    targetPlanPrice?: number
+  ): Promise<BillingCalculationResult> => {
+    const token = getAuthToken();
+    try {
+      const res = await fetch('http://localhost:8000/billing/calculate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          target_plan_name: targetPlanName,
+          billing_cycle: billingCycle,
+          target_plan_price: targetPlanPrice,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          return data;
+        }
+      }
+      throw new Error('Billing calculation returned unsuccessful response from server.');
+    } catch (e: any) {
+      console.warn('POST /billing/calculate error:', e);
+      throw new Error(e.message || 'Failed to calculate billing with backend server.');
+    }
+  },
+
+  /**
+   * Fetches invoices for authenticated user or admin directly from SQLite database.
+   */
+  getMyInvoices: async (): Promise<Invoice[]> => {
+    const token = getAuthToken();
+    try {
+      const res = await fetch('http://localhost:8000/invoices/me', {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.invoices)) {
+          return data.invoices as Invoice[];
+        }
+      }
+    } catch (e) {
+      console.warn('GET /invoices/me error:', e);
+    }
+    return [];
+  },
+
+  /**
+   * Fetches payments for authenticated user or admin directly from SQLite database.
+   */
+  getMyPayments: async (): Promise<any[]> => {
+    const token = getAuthToken();
+    try {
+      const res = await fetch('http://localhost:8000/payments/me', {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.payments)) {
+          return data.payments;
+        }
+      }
+    } catch (e) {
+      console.warn('GET /payments/me error:', e);
+    }
+    return [];
+  },
+
+
+
   /**
    * Fetches customer-specific billing summary data aggregated from local storage & API services.
    */
-  getCustomerBillingSummary: async (email: string, userCreatedAt?: string): Promise<CustomerBillingSummary> => {
-    // Simulate slight API latency
-    await new Promise((resolve) => setTimeout(resolve, 150));
-
-    const cleanEmail = email.trim().toLowerCase();
-
-    // 1. Fetch User & Customer record
-    const users = getItem<any[]>(STORAGE_KEYS.USERS, []);
-    const userRecord = users.find((u) => u.email?.toLowerCase() === cleanEmail);
-
-    const customers = getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
-    const customer = customers.find((c) => c.email?.toLowerCase() === cleanEmail);
-
-    // 2. Fetch Customer Invoices & Payments
-    const invoices = getItem<Invoice[]>(STORAGE_KEYS.INVOICES, []);
-    const customerInvoices = invoices.filter((i) => i.customerEmail?.toLowerCase() === cleanEmail);
-
-    const payments = getItem<any[]>(STORAGE_KEYS.PAYMENTS, []);
-    const customerPayments = payments.filter((p) => p.customerEmail?.toLowerCase() === cleanEmail);
-
-    // 3. Fetch Customer Subscriptions
-    const subscriptions = getItem<Subscription[]>(STORAGE_KEYS.SUBSCRIPTIONS, []);
-    const activeSub = subscriptions.find((s) => s.customerEmail?.toLowerCase() === cleanEmail);
-
-    // Calculate metrics
-    const paidInvoices = customerInvoices.filter((i) => i.status === 'Paid');
-    const successfulPayments = customerPayments.filter((p) => p.status === 'Success' || p.status === 'Paid');
-
-    const pendingInvoices = customerInvoices.filter((i) => i.status === 'Pending');
-    const overdueInvoices = customerInvoices.filter((i) => i.status === 'Overdue');
-    const failedPayments = customerPayments.filter((p) => p.status === 'Failed');
-
-    const totalInvoiceSpent = paidInvoices.reduce((sum, inv) => sum + inv.amount, 0);
-    const totalPaymentSpent = successfulPayments.reduce((sum, p) => sum + (p.amountPaid || p.amount || 0), 0);
-    const totalSpent = totalInvoiceSpent + totalPaymentSpent;
-
-    const paymentsCompletedCount = paidInvoices.length + successfulPayments.length;
-    const averageMonthlySpend = paymentsCompletedCount > 0 ? Math.round(totalSpent / Math.max(1, paymentsCompletedCount)) : 0;
-
-    const discounts: DiscountRecord[] = [];
-    const totalSavings = 0;
-
-    const currentSubscriptionCost = activeSub ? activeSub.amount : (customer?.mrr || 0);
-    const currentPlanName = activeSub ? activeSub.planName : (customer && customer.subscriptionPlan !== 'None' ? customer.subscriptionPlan : 'No active plan');
-
-    // Determine latest payment date
-    const allDates: string[] = [
-      ...paidInvoices.map((i) => i.issueDate),
-      ...successfulPayments.map((p) => p.date || p.paymentDate),
-    ].filter(Boolean);
-    const sortedDates = [...allDates].sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
-    const latestPaymentDate = sortedDates.length > 0 ? sortedDates[0] : null;
-
-    // Payment Summary stats
-    const paymentSummary: PaymentSummaryStats = {
-      successfulCount: paymentsCompletedCount,
-      successfulAmount: totalSpent,
-      pendingCount: pendingInvoices.length,
-      pendingAmount: pendingInvoices.reduce((s, i) => s + i.amount, 0),
-      failedCount: overdueInvoices.length + failedPayments.length,
-      failedAmount: overdueInvoices.reduce((s, i) => s + i.amount, 0) + failedPayments.reduce((s, p) => s + (p.amount || 0), 0),
-      refundedCount: 0,
-      refundedAmount: 0,
-      latestPaymentDate,
-    };
-
-    // Monthly spending trend calculation (6 months)
-    const monthNames = ['Mar 2026', 'Apr 2026', 'May 2026', 'Jun 2026', 'Jul 2026', 'Aug 2026'];
-    const spendingTrend: MonthlyTrendPoint[] = monthNames.map((month) => ({
-      month,
-      amount: totalSpent > 0 ? averageMonthlySpend : 0,
-    }));
-
-    // Derive Customer Since from exact registration date
-    const rawCreated = userCreatedAt || userRecord?.createdAt || userRecord?.registrationDate || customer?.registrationDate || customer?.joinedDate || new Date().toISOString();
-    const customerSinceDate = rawCreated.includes('T') ? rawCreated.split('T')[0] : rawCreated;
-
-    return {
-      totalSpent,
-      totalSavings,
-      currentSubscriptionCost,
-      currentPlanName,
-      averageMonthlySpend,
-      paymentsCompletedCount,
-
-      billingCycle: activeSub?.billingCycle || (hasActiveSubscriptionPlan(currentPlanName) ? 'Monthly' : 'N/A'),
-      subscriptionStatus: activeSub?.status || (hasActiveSubscriptionPlan(currentPlanName) ? 'Active' : 'Inactive'),
-      renewalDate: activeSub?.nextBillingDate || 'N/A',
-      nextBillingAmount: currentSubscriptionCost,
-
-      paymentSummary,
-      discounts,
-      recentInvoices: customerInvoices,
-      spendingTrend,
-
-      customerSince: customerSinceDate,
-      membershipStatus: activeSub?.status || customer?.status || (userRecord ? 'Verified' : 'Active'),
-    };
+  getCustomerBillingSummary: async (email?: string): Promise<CustomerBillingSummary> => {
+    const token = getAuthToken();
+    const res = await fetch('http://localhost:8000/billing/summary', {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.summary) {
+        return data.summary as CustomerBillingSummary;
+      }
+    }
+    throw new Error('Failed to fetch billing summary from server.');
   },
+
 
   /**
    * Generates and downloads the PDF Billing Statement directly in browser

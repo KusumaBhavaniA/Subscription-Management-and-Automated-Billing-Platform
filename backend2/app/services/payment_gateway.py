@@ -38,7 +38,7 @@ async def send_payment_webhook(payload: dict[str, Any]) -> bool:
 def decide_payment_success(simulate_failure: bool = False) -> bool:
     if simulate_failure:
         return False
-    return random.random() < settings.PAYMENT_SUCCESS_RATE
+    return True
 
 
 def serialize_amount(value: Decimal) -> float:

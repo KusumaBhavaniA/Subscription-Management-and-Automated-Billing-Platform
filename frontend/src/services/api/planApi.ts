@@ -19,16 +19,27 @@ export interface PlanPayload {
 
 export const planApi = {
   getPlans: async (): Promise<Plan[]> => {
+    try {
+      const res = await fetch('http://localhost:8000/plans');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.plans)) {
+          return data.plans as Plan[];
+        }
+      }
+    } catch (e) {
+      console.warn('GET /plans error:', e);
+    }
     return getItem<Plan[]>(STORAGE_KEYS.PLANS, INITIAL_PLANS);
   },
 
   getPlanDetails: async (planId: string): Promise<Plan | null> => {
-    const list = getItem<Plan[]>(STORAGE_KEYS.PLANS, INITIAL_PLANS);
-    return list.find((p) => p.id === planId) || null;
+    const list = await planApi.getPlans();
+    return list.find((p) => p.id === planId || (p as any).dbId === planId) || null;
   },
 
   createPlan: async (payload: PlanPayload): Promise<Plan> => {
-    const list = getItem<Plan[]>(STORAGE_KEYS.PLANS, INITIAL_PLANS);
+    const list = await planApi.getPlans();
     const newPlan: Plan = {
       id: `plan-${Date.now()}`,
       name: payload.name.trim(),
@@ -51,7 +62,7 @@ export const planApi = {
   },
 
   updatePlan: async (planId: string, payload: Partial<PlanPayload>): Promise<Plan> => {
-    const list = getItem<Plan[]>(STORAGE_KEYS.PLANS, INITIAL_PLANS);
+    const list = await planApi.getPlans();
     const idx = list.findIndex((p) => p.id === planId);
     if (idx === -1) throw new Error('Plan not found');
 
@@ -67,7 +78,7 @@ export const planApi = {
   },
 
   toggleEnablePlan: async (planId: string): Promise<Plan> => {
-    const list = getItem<Plan[]>(STORAGE_KEYS.PLANS, INITIAL_PLANS);
+    const list = await planApi.getPlans();
     const idx = list.findIndex((p) => p.id === planId);
     if (idx === -1) throw new Error('Plan not found');
 
@@ -78,7 +89,7 @@ export const planApi = {
   },
 
   deletePlan: async (planId: string): Promise<boolean> => {
-    const list = getItem<Plan[]>(STORAGE_KEYS.PLANS, INITIAL_PLANS);
+    const list = await planApi.getPlans();
     const filtered = list.filter((p) => p.id !== planId);
     setItem(STORAGE_KEYS.PLANS, filtered);
     return true;

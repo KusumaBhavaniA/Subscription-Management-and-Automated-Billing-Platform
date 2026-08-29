@@ -1,6 +1,6 @@
-# Billing Platform - Smart Subscription & Billing Management System
+# NexFlow — Subscription & Billing Platform
 
-A premium, responsive SaaS frontend interface built for a **Smart Subscription & Billing Management System**. Designed in the aesthetic styles of modern platforms like Vercel, Linear, Stripe, and Clerk, featuring custom glassmorphic styling, React, TypeScript, Tailwind CSS, Framer Motion, and seamless dark/light mode customization.
+A premium, responsive SaaS frontend interface built for **NexFlow — Subscription & Billing Platform**. Designed in the aesthetic styles of modern platforms like Vercel, Linear, Stripe, and Clerk, featuring custom glassmorphic styling, React, TypeScript, Tailwind CSS, Framer Motion, and seamless dark/light mode customization.
 
 ## 🚀 Quick Start (Running Locally)
 

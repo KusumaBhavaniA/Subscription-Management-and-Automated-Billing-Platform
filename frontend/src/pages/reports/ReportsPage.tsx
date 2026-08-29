@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   BarChart2,
   Download,
@@ -15,6 +15,7 @@ import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 import { Toast } from '../../components/common/Toast';
+import { PageHeader } from '../../components/common/PageHeader';
 import { formatCurrency } from '../../utils/formatters';
 import { getItem, STORAGE_KEYS } from '../../utils/storage';
 import { Customer } from '../../types/customer';
@@ -78,6 +79,9 @@ function downloadCSV(filename: string, rows: Record<string, unknown>[]) {
   URL.revokeObjectURL(url);
 }
 
+import { customerApi } from '../../services/api/customerApi';
+import { subscriptionManagementApi } from '../../services/api/subscriptionManagementApi';
+
 export const ReportsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ReportTab>('revenue');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
@@ -91,19 +95,59 @@ export const ReportsPage: React.FC = () => {
     type: 'success',
   });
 
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      const [custList, subList] = await Promise.all([
+        customerApi.getCustomers('active'),
+        subscriptionManagementApi.getSubscriptions(),
+      ]);
+      setCustomers(custList);
+      setSubscriptions(subList);
+
+      const token = localStorage.getItem(STORAGE_KEYS.AUTH);
+      let parsedToken = token;
+      if (token && token.startsWith('{')) {
+        try {
+          parsedToken = JSON.parse(token).token || JSON.parse(token).access_token;
+        } catch {}
+      }
+
+      const invRes = await fetch('http://localhost:8000/invoices/me', {
+        headers: {
+          ...(parsedToken ? { Authorization: `Bearer ${parsedToken}` } : {}),
+        },
+      });
+      if (invRes.ok) {
+        const invData = await invRes.json();
+        if (invData.success && Array.isArray(invData.invoices)) {
+          setInvoices(invData.invoices);
+        }
+      }
+    } catch (err) {
+      console.warn('Reports data load error:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToast({ isVisible: true, message, type });
   };
 
-  // Load live data
-  const customers = useMemo(() => getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []), []);
-  const invoices = useMemo(() => getItem<Invoice[]>(STORAGE_KEYS.INVOICES, []), []);
-  const subscriptions = useMemo(() => getItem<Subscription[]>(STORAGE_KEYS.SUBSCRIPTIONS, []), []);
-
   // Revenue KPIs
   const totalRevenue = invoices.reduce((s, inv) => (inv.status === 'Paid' ? s + inv.amount : s), 0);
   const pendingRevenue = invoices.reduce((s, inv) => (inv.status === 'Pending' || inv.status === 'Overdue' ? s + inv.amount : s), 0);
-  const totalMRR = customers.reduce((s, c) => s + (c.mrr || 0), 0);
+  const totalMRR = subscriptions.filter((s) => s.status === 'Active').reduce((s, sub) => s + (sub.amount || 0), 0);
   const paidInvoices = invoices.filter((i) => i.status === 'Paid').length;
 
   // Customer KPIs
@@ -114,25 +158,28 @@ export const ReportsPage: React.FC = () => {
 
   // Subscription KPIs
   const activeSubscriptions = subscriptions.filter((s) => s.status === 'Active').length;
-  const cancelledSubscriptions = subscriptions.filter((s) => s.status === 'Cancelled').length;
+  const cancelledSubscriptions = subscriptions.filter((s) => (s.status as string) === 'Cancelled' || (s.status as string) === 'Canceled' || (s.status as string) === 'canceled').length;
   const pausedSubscriptions = subscriptions.filter((s) => s.status === 'Inactive').length;
 
-  const tabs: { id: ReportTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'revenue', label: 'Revenue & MRR', icon: <TrendingUp className="w-4 h-4" /> },
-    { id: 'customers', label: 'Customer Growth', icon: <Users className="w-4 h-4" /> },
-    { id: 'subscriptions', label: 'Subscriptions', icon: <CreditCard className="w-4 h-4" /> },
-    { id: 'invoices', label: 'Invoices', icon: <DollarSign className="w-4 h-4" /> },
+  const tabs = [
+    { id: 'revenue' as ReportTab, label: 'Revenue & MRR', icon: <TrendingUp className="w-4 h-4" /> },
+    { id: 'customers' as ReportTab, label: 'Customer Growth', icon: <Users className="w-4 h-4" /> },
+    { id: 'subscriptions' as ReportTab, label: 'Subscriptions', icon: <CreditCard className="w-4 h-4" /> },
+    { id: 'invoices' as ReportTab, label: 'Invoices', icon: <FileSpreadsheet className="w-4 h-4" /> },
   ];
 
   const handleExportCSV = () => {
     const dateStr = getReportDateString();
+
     if (activeTab === 'revenue') {
-      downloadCSV(`Revenue-MRR-Report-${dateStr}.csv`, [
-        { Category: 'Paid Revenue', Amount: formatCurrency(totalRevenue) },
-        { Category: 'Pending Revenue', Amount: formatCurrency(pendingRevenue) },
-        { Category: 'Monthly MRR (Recurring)', Amount: formatCurrency(totalMRR) },
-        { Category: 'Paid Invoices', Amount: paidInvoices.toString() },
-      ]);
+      const rows = [
+        { Metric: 'Total Revenue (Paid)', Value: formatCurrency(totalRevenue) },
+        { Metric: 'Pending Revenue', Value: formatCurrency(pendingRevenue) },
+        { Metric: 'Monthly Recurring Revenue (MRR)', Value: formatCurrency(totalMRR) },
+        { Metric: 'Paid Invoices Count', Value: paidInvoices },
+        { Metric: 'Total Invoices Count', Value: invoices.length },
+      ];
+      downloadCSV(`Revenue-Report-${dateStr}.csv`, rows);
       showToast('CSV report downloaded successfully.', 'success');
     } else if (activeTab === 'customers') {
       if (!customers || customers.length === 0) {
@@ -145,11 +192,10 @@ export const ReportsPage: React.FC = () => {
           'Customer ID': c.customerId || c.id,
           Name: c.name,
           Email: c.email,
-          Phone: c.phone || '',
+          Plan: c.subscriptionPlan,
           Status: c.status,
-          Plan: c.subscriptionPlan || 'No Plan',
           MRR: formatCurrency(c.mrr || 0),
-          'Joined Date': c.joinedDate || c.registrationDate || '',
+          'Joined Date': c.joinedDate,
         }))
       );
       showToast('CSV report downloaded successfully.', 'success');
@@ -223,52 +269,48 @@ export const ReportsPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-10 print:space-y-4">
+    <div className="space-y-6 max-w-7xl mx-auto pb-16 print:space-y-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:hidden">
-        <div>
-          <h1 className="text-2xl font-extrabold text-heading flex items-center gap-2">
-            <BarChart2 className="w-6 h-6 text-primary" />
-            Reports & Analytics
-          </h1>
-          <p className="text-xs text-secondaryText mt-1">
-            Export CSV and PDF financial and operational reports for audit compliance.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            leftIcon={<Printer className="w-4 h-4" />}
-            onClick={handlePrintPDF}
-            isLoading={isGeneratingPdf}
-            disabled={isGeneratingPdf}
-          >
-            {isGeneratingPdf ? 'Generating PDF...' : 'Print / PDF'}
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            leftIcon={<Download className="w-4 h-4" />}
-            onClick={handleExportCSV}
-            disabled={isGeneratingPdf}
-          >
-            Export CSV
-          </Button>
-        </div>
+      <div className="print:hidden">
+        <PageHeader
+          title="Reports & Analytics"
+          subtitle="Export financial and operational reports for audit compliance."
+          icon={BarChart2}
+        >
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={<Printer className="w-4 h-4" />}
+              onClick={handlePrintPDF}
+              isLoading={isGeneratingPdf}
+              disabled={isGeneratingPdf}
+            >
+              {isGeneratingPdf ? 'Generating PDF...' : 'Print / PDF'}
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              leftIcon={<Download className="w-4 h-4" />}
+              onClick={handleExportCSV}
+              disabled={isGeneratingPdf}
+            >
+              Export CSV
+            </Button>
+          </div>
+        </PageHeader>
       </div>
 
       {/* Report Tabs */}
-      <div className="flex items-center gap-1 overflow-x-auto pb-1 border-b border-border print:hidden">
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-border print:hidden">
         {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setActiveTab(t.id)}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
               activeTab === t.id
-                ? 'bg-primary text-white shadow-md'
-                : 'text-secondaryText hover:text-primaryText hover:bg-secondary'
+                ? 'bg-primary text-white shadow-xs'
+                : 'text-secondaryText hover:text-heading hover:bg-secondary'
             }`}
           >
             {t.icon}

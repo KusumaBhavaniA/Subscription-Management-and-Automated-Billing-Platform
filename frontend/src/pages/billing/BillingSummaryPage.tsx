@@ -51,10 +51,7 @@ export const BillingSummaryPage: React.FC = () => {
       setIsLoading(true);
       try {
         if (user?.email) {
-          const summary = await billingApi.getCustomerBillingSummary(
-            user.email,
-            user.createdAt || user.registrationDate
-          );
+          const summary = await billingApi.getCustomerBillingSummary(user.email);
           setData(summary);
         } else {
           setData(null);

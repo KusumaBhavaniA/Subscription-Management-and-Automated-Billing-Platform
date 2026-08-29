@@ -41,6 +41,26 @@ class User(Base):
         nullable=True
     )
 
+    state = Column(
+        String,
+        nullable=True
+    )
+
+    city = Column(
+        String,
+        nullable=True
+    )
+
+    zip_code = Column(
+        String,
+        nullable=True
+    )
+
+    address = Column(
+        String,
+        nullable=True
+    )
+
     hashed_password = Column(
         String,
         nullable=True  # nullable for OAuth-only accounts
@@ -154,3 +174,38 @@ class RevokedToken(Base):
     jti = Column(String(36), unique=True, nullable=False, index=True)
     expires_at = Column(DateTime(timezone=True), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class Ticket(Base):
+    __tablename__ = "support_tickets"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ticket_id = Column(String(64), unique=True, nullable=False, index=True)
+    user_id = Column(Integer, nullable=True, index=True)
+    customer_name = Column(String(100), nullable=False)
+    customer_email = Column(String(100), nullable=False, index=True)
+    category = Column(String(50), nullable=False)
+    subcategory = Column(String(50), nullable=True)
+    subject = Column(String(200), nullable=False)
+    status = Column(String(30), nullable=False, default="Open", index=True)
+    assigned_agent = Column(String(100), nullable=True)
+    dynamic_fields = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+
+class TicketMessage(Base):
+    __tablename__ = "support_ticket_messages"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ticket_id = Column(String(64), nullable=False, index=True)
+    sender_role = Column(String(30), nullable=False)  # "Customer", "Support", "Admin"
+    sender_name = Column(String(100), nullable=False)
+    message = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+

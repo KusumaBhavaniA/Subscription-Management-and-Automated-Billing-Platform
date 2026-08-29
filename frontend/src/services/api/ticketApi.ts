@@ -2,143 +2,96 @@ import { Ticket, TicketCategory, TicketStatus, TicketMessage } from '../../types
 import { STORAGE_KEYS, getItem, setItem } from '../../utils/storage';
 
 export interface CreateTicketPayload {
-  customerId: string;
-  customerName: string;
-  customerEmail: string;
+  customerId?: string;
+  customerName?: string;
+  customerEmail?: string;
   category: TicketCategory;
-  subcategory: string;
+  subcategory?: string;
   subject: string;
   initialMessage: string;
   dynamicFields?: Record<string, string>;
 }
 
-const INITIAL_TICKETS: Ticket[] = [
-  {
-    id: 'TCK-2026-001',
-    customerId: 'CUS-2026-000001',
-    customerName: 'Rohan Sharma',
-    customerEmail: 'rohan.sharma@techcorp.in',
-    category: 'Billing & Payments',
-    subcategory: 'Payment Failed',
-    status: 'Open',
-    subject: 'Card charge failed for INV-2026-002',
-    createdDate: new Date(Date.now() - 3600000 * 24).toISOString(),
-    updatedDate: new Date(Date.now() - 3600000 * 2).toISOString(),
-    assignedAgent: 'Sarah Connor',
-    unreadMessagesCount: 1,
-    dynamicFields: {
-      'Invoice Number': 'INV-2026-002',
-      'Transaction ID': 'TXN-98712399',
-      'Payment Method': 'Credit Card (Visa)',
-    },
-    messages: [
-      {
-        id: 'msg-1',
-        senderRole: 'Customer',
-        senderName: 'Rohan Sharma',
-        message: 'My payment for invoice INV-2026-002 failed with code ERR_CARD_DECLINED. Could you please check on the payment gateway side?',
-        timestamp: 'Yesterday at 14:30',
-      },
-      {
-        id: 'msg-2',
-        senderRole: 'Support',
-        senderName: 'Sarah Connor',
-        message: 'Hello Rohan, thanks for reaching out. We see a temporary bank block on Visa cards ending in 4242. Please update your payment method or retry.',
-        timestamp: 'Today at 09:15',
-      },
-    ],
-  },
-  {
-    id: 'TCK-2026-002',
-    customerId: 'CUS-2026-000002',
-    customerName: 'Priya Sundaram',
-    customerEmail: 'priya@datasolutions.com',
-    category: 'Subscription',
-    subcategory: 'Upgrade Subscription',
-    status: 'In Progress',
-    subject: 'Upgrade to Enterprise Scale annual plan',
-    createdDate: new Date(Date.now() - 3600000 * 48).toISOString(),
-    updatedDate: new Date(Date.now() - 3600000 * 5).toISOString(),
-    assignedAgent: 'Alex Turner',
-    unreadMessagesCount: 0,
-    dynamicFields: {
-      'Target Plan': 'Enterprise Scale',
-      'Billing Preference': 'Annual (Discounted)',
-    },
-    messages: [
-      {
-        id: 'msg-3',
-        senderRole: 'Customer',
-        senderName: 'Priya Sundaram',
-        message: 'We want to switch our account from Pro Business monthly to Enterprise Scale yearly to get dedicated SLA support.',
-        timestamp: '2 days ago',
-      },
-      {
-        id: 'msg-4',
-        senderRole: 'Support',
-        senderName: 'Alex Turner',
-        message: 'Hi Priya! I have prepared the custom invoice for Enterprise Scale annual billing with a 20% tier discount.',
-        timestamp: '5 hours ago',
-      },
-    ],
-  },
-  {
-    id: 'TCK-2026-003',
-    customerId: 'CUS-2026-000003',
-    customerName: 'Aarav Mehta',
-    customerEmail: 'aarav@cloudnexus.io',
-    category: 'Technical',
-    subcategory: 'API Help',
-    status: 'Resolved',
-    subject: 'Webhook signature verification failing',
-    createdDate: new Date(Date.now() - 3600000 * 72).toISOString(),
-    updatedDate: new Date(Date.now() - 3600000 * 12).toISOString(),
-    assignedAgent: 'Dev Support Team',
-    unreadMessagesCount: 0,
-    dynamicFields: {
-      'API Endpoint': '/api/v1/webhooks',
-      'SDK Version': 'v2.4.0',
-    },
-    messages: [
-      {
-        id: 'msg-5',
-        senderRole: 'Customer',
-        senderName: 'Aarav Mehta',
-        message: 'We are receiving HTTP 401 when validating webhook signatures. What is the hash algorithm used?',
-        timestamp: '3 days ago',
-      },
-      {
-        id: 'msg-6',
-        senderRole: 'Support',
-        senderName: 'Dev Support Team',
-        message: 'Hello Aarav, signatures use HMAC-SHA256 with the secret header `X-Billing-Signature`. Check our documentation snippet!',
-        timestamp: 'Yesterday at 18:00',
-      },
-    ],
-  },
-];
+const getAuthToken = (): string | null => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.AUTH);
+    if (!raw) return null;
+    if (raw.startsWith('{')) {
+      const parsed = JSON.parse(raw);
+      return parsed.token || parsed.access_token || parsed.user?.token || null;
+    }
+    return raw;
+  } catch {
+    return null;
+  }
+};
 
 export const ticketApi = {
   getTickets: async (): Promise<Ticket[]> => {
-    return getItem<Ticket[]>(STORAGE_KEYS.TICKETS, INITIAL_TICKETS);
+    const token = getAuthToken();
+    try {
+      const res = await fetch('http://localhost:8000/support/tickets', {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.tickets)) {
+          return data.tickets as Ticket[];
+        }
+      }
+    } catch (e) {
+      console.warn('GET /support/tickets error:', e);
+    }
+    return getItem<Ticket[]>(STORAGE_KEYS.TICKETS, []);
   },
 
   getTicketById: async (id: string): Promise<Ticket | null> => {
-    const list = getItem<Ticket[]>(STORAGE_KEYS.TICKETS, INITIAL_TICKETS);
+    const list = await ticketApi.getTickets();
     return list.find((t) => t.id === id) || null;
   },
 
   createTicket: async (payload: CreateTicketPayload): Promise<Ticket> => {
-    const list = getItem<Ticket[]>(STORAGE_KEYS.TICKETS, INITIAL_TICKETS);
-    const ticketId = `SUP-2026-${Math.floor(100000 + Math.random() * 900000)}`;
+    const token = getAuthToken();
+    try {
+      const res = await fetch('http://localhost:8000/support/tickets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          category: payload.category,
+          subcategory: payload.subcategory,
+          subject: payload.subject,
+          initialMessage: payload.initialMessage,
+          dynamicFields: payload.dynamicFields,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          const tickets = await ticketApi.getTickets();
+          const created = tickets.find((t) => t.id === data.ticketId);
+          if (created) return created;
+        }
+      }
+    } catch (e) {
+      console.warn('POST /support/tickets error:', e);
+    }
 
+    // Local storage fallback if offline
+    const list = getItem<Ticket[]>(STORAGE_KEYS.TICKETS, []);
+    const ticketId = `SUP-2026-${Math.floor(100000 + Math.random() * 900000)}`;
     const newTicket: Ticket = {
       id: ticketId,
-      customerId: payload.customerId,
-      customerName: payload.customerName,
-      customerEmail: payload.customerEmail,
-      category: payload.category,
-      subcategory: payload.subcategory,
+      customerId: payload.customerId || 'CUS-000001',
+      customerName: payload.customerName || 'Valued Customer',
+      customerEmail: payload.customerEmail || '',
+      category: payload.category || 'Billing & Payments',
+      subcategory: payload.subcategory || '',
       status: 'Open',
       subject: payload.subject.trim(),
       createdDate: new Date().toISOString(),
@@ -150,13 +103,12 @@ export const ticketApi = {
         {
           id: `msg-${Date.now()}`,
           senderRole: 'Customer',
-          senderName: payload.customerName,
+          senderName: payload.customerName || 'Customer',
           message: payload.initialMessage.trim(),
           timestamp: 'Just now',
         },
       ],
     };
-
     list.unshift(newTicket);
     setItem(STORAGE_KEYS.TICKETS, list);
     return newTicket;
@@ -169,85 +121,94 @@ export const ticketApi = {
     message: string,
     attachments?: { name: string; url: string; size: string }[]
   ): Promise<Ticket> => {
-    const list = getItem<Ticket[]>(STORAGE_KEYS.TICKETS, INITIAL_TICKETS);
-    const idx = list.findIndex((t) => t.id === ticketId);
-    if (idx === -1) throw new Error('Ticket not found');
-
-    const newMessage: TicketMessage = {
-      id: `msg-${Date.now()}`,
-      senderRole,
-      senderName,
-      message: message.trim(),
-      timestamp: 'Just now',
-      attachments,
-    };
-
-    list[idx].messages.push(newMessage);
-    list[idx].updatedDate = new Date().toISOString();
-    if (senderRole !== 'Customer') {
-      list[idx].status = list[idx].status === 'Open' ? 'In Progress' : list[idx].status;
+    const token = getAuthToken();
+    try {
+      const res = await fetch(`http://localhost:8000/support/tickets/${ticketId}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ message }),
+      });
+      if (res.ok) {
+        const tickets = await ticketApi.getTickets();
+        const found = tickets.find((t) => t.id === ticketId);
+        if (found) return found;
+      }
+    } catch (e) {
+      console.warn(`POST /support/tickets/${ticketId}/messages error:`, e);
     }
 
-    setItem(STORAGE_KEYS.TICKETS, list);
-    return list[idx];
+    const list = getItem<Ticket[]>(STORAGE_KEYS.TICKETS, []);
+    const idx = list.findIndex((t) => t.id === ticketId);
+    if (idx !== -1) {
+      const newMessage: TicketMessage = {
+        id: `msg-${Date.now()}`,
+        senderRole,
+        senderName,
+        message: message.trim(),
+        timestamp: 'Just now',
+        attachments,
+      };
+      list[idx].messages.push(newMessage);
+      list[idx].updatedDate = new Date().toISOString();
+      if (senderRole !== 'Customer') {
+        list[idx].status = list[idx].status === 'Open' ? 'In Progress' : list[idx].status;
+      }
+      setItem(STORAGE_KEYS.TICKETS, list);
+      return list[idx];
+    }
+    throw new Error('Ticket not found');
   },
 
   updateStatus: async (ticketId: string, status: TicketStatus): Promise<Ticket> => {
-    const list = getItem<Ticket[]>(STORAGE_KEYS.TICKETS, INITIAL_TICKETS);
+    const token = getAuthToken();
+    try {
+      const res = await fetch(`http://localhost:8000/support/tickets/${ticketId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ status }),
+      });
+      if (res.ok) {
+        const tickets = await ticketApi.getTickets();
+        const found = tickets.find((t) => t.id === ticketId);
+        if (found) return found;
+      }
+    } catch (e) {
+      console.warn(`PATCH /support/tickets/${ticketId}/status error:`, e);
+    }
+
+    const list = getItem<Ticket[]>(STORAGE_KEYS.TICKETS, []);
     const idx = list.findIndex((t) => t.id === ticketId);
-    if (idx === -1) throw new Error('Ticket not found');
-
-    list[idx].status = status;
-    list[idx].updatedDate = new Date().toISOString();
-
-    setItem(STORAGE_KEYS.TICKETS, list);
-    return list[idx];
+    if (idx !== -1) {
+      list[idx].status = status;
+      list[idx].updatedDate = new Date().toISOString();
+      setItem(STORAGE_KEYS.TICKETS, list);
+      return list[idx];
+    }
+    throw new Error('Ticket not found');
   },
 
   assignAgent: async (ticketId: string, agentName: string): Promise<Ticket> => {
-    const list = getItem<Ticket[]>(STORAGE_KEYS.TICKETS, INITIAL_TICKETS);
-    const idx = list.findIndex((t) => t.id === ticketId);
-    if (idx === -1) throw new Error('Ticket not found');
-
-    list[idx].assignedAgent = agentName;
-    list[idx].updatedDate = new Date().toISOString();
-
-    setItem(STORAGE_KEYS.TICKETS, list);
-    return list[idx];
+    const list = await ticketApi.getTickets();
+    const found = list.find((t) => t.id === ticketId);
+    if (found) {
+      found.assignedAgent = agentName;
+      return found;
+    }
+    return (await ticketApi.getTicketById(ticketId))!;
   },
 
   cancelTicket: async (ticketId: string): Promise<Ticket> => {
-    const list = getItem<Ticket[]>(STORAGE_KEYS.TICKETS, INITIAL_TICKETS);
-    const idx = list.findIndex((t) => t.id === ticketId);
-    if (idx === -1) throw new Error('Ticket not found');
-
-    // Customer can cancel before support starts
-    if (list[idx].messages.some((m) => m.senderRole !== 'Customer')) {
-      throw new Error('Cannot cancel ticket after support response. Please request ticket closure instead.');
-    }
-
-    list[idx].status = 'Cancelled';
-    list[idx].updatedDate = new Date().toISOString();
-    setItem(STORAGE_KEYS.TICKETS, list);
-    return list[idx];
+    return ticketApi.updateStatus(ticketId, 'Cancelled');
   },
 
   reopenTicket: async (ticketId: string): Promise<Ticket> => {
-    const list = getItem<Ticket[]>(STORAGE_KEYS.TICKETS, INITIAL_TICKETS);
-    const idx = list.findIndex((t) => t.id === ticketId);
-    if (idx === -1) throw new Error('Ticket not found');
-
-    // Check if within 7 days
-    const createdTime = new Date(list[idx].createdDate).getTime();
-    const now = Date.now();
-    const diffDays = (now - createdTime) / (1000 * 3600 * 24);
-    if (diffDays > 7) {
-      throw new Error('Resolved tickets can only be reopened within 7 days of creation/resolution. Please raise a new ticket.');
-    }
-
-    list[idx].status = 'In Progress';
-    list[idx].updatedDate = new Date().toISOString();
-    setItem(STORAGE_KEYS.TICKETS, list);
-    return list[idx];
+    return ticketApi.updateStatus(ticketId, 'Open');
   },
 };
+

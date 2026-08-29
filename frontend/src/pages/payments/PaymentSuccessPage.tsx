@@ -1,6 +1,6 @@
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { CheckCircle2, Download, LayoutDashboard, CreditCard, Sparkles, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, Download, LayoutDashboard, FileText, ShieldCheck, Mail } from 'lucide-react';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
@@ -18,6 +18,7 @@ export const PaymentSuccessPage: React.FC = () => {
   const txn: PaymentTransactionResult = locationState?.transaction || {
     success: true,
     transactionId: `TXN-${new Date().toISOString().replace(/[-:T shadow.Z]/g, '').slice(0, 12)}`,
+    invoiceId: `INV-2026-${Math.floor(100000 + Math.random() * 900000)}`,
     paymentDate: new Date().toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
@@ -30,6 +31,7 @@ export const PaymentSuccessPage: React.FC = () => {
     billingCycle: 'Monthly',
     customerName: user?.fullName || 'John Doe',
     customerEmail: user?.email || 'customer@example.com',
+    emailStatus: `Invoice email sent to: ${user?.email || 'customer@example.com'}`,
   };
 
   const handleDownloadInvoice = () => {
@@ -60,10 +62,18 @@ export const PaymentSuccessPage: React.FC = () => {
 
         <div className="space-y-2">
           <Badge variant="success" className="mx-auto">✔ Payment Successful</Badge>
-          <h1 className="text-2xl font-black text-heading">Subscription Activated Successfully!</h1>
+          <h1 className="text-2xl font-black text-heading">Payment Successful</h1>
           <p className="text-xs text-secondaryText max-w-md mx-auto">
-            Thank you for your purchase. Your subscription access has been updated immediately across your dashboard.
+            Your payment of <strong className="text-heading font-extrabold">{formatCurrency(txn.amountPaid)}</strong> was completed successfully.
           </p>
+        </div>
+
+        {/* Email Status Indicator */}
+        <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-2 font-bold">
+          <Mail className="w-4 h-4 shrink-0" />
+          <span>
+            {txn.emailStatus ? txn.emailStatus : 'Payment completed. Invoice processing is being handled by the billing system.'}
+          </span>
         </div>
 
         {/* Transaction Details Box */}
@@ -71,31 +81,31 @@ export const PaymentSuccessPage: React.FC = () => {
           <div className="flex items-center justify-between pb-3 border-b border-border">
             <span className="font-bold text-mutedText uppercase text-[10px] tracking-wider">Transaction Summary</span>
             <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-              <ShieldCheck className="w-3.5 h-3.5" /> Confirmed & Verified
+              <ShieldCheck className="w-3.5 h-3.5" /> SUCCESS
             </span>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <span className="text-[10px] text-mutedText block font-medium">Plan Name</span>
-              <span className="font-extrabold text-heading">{txn.planName}</span>
+              <span className="text-[10px] text-mutedText block font-medium">Payment ID</span>
+              <span className="font-mono font-bold text-heading text-[11px]">{txn.transactionId}</span>
             </div>
 
             <div>
-              <span className="text-[10px] text-mutedText block font-medium">Billing Frequency</span>
-              <span className="font-extrabold text-heading">{txn.billingCycle}</span>
+              <span className="text-[10px] text-mutedText block font-medium">Invoice ID</span>
+              <span className="font-mono font-bold text-primary text-[11px]">{txn.invoiceId || 'INV-2026-001'}</span>
             </div>
 
             <div>
-              <span className="text-[10px] text-mutedText block font-medium">Amount Paid</span>
+              <span className="text-[10px] text-mutedText block font-medium">Amount</span>
               <span className="font-extrabold text-emerald-600 dark:text-emerald-400 text-sm">
                 {formatCurrency(txn.amountPaid)}
               </span>
             </div>
 
             <div>
-              <span className="text-[10px] text-mutedText block font-medium">Transaction ID</span>
-              <span className="font-mono font-bold text-heading text-[11px]">{txn.transactionId}</span>
+              <span className="text-[10px] text-mutedText block font-medium">Payment Status</span>
+              <Badge variant="success" className="w-fit text-[10px] font-bold">SUCCESS</Badge>
             </div>
 
             <div>
@@ -104,13 +114,18 @@ export const PaymentSuccessPage: React.FC = () => {
             </div>
 
             <div>
-              <span className="text-[10px] text-mutedText block font-medium">Customer Name</span>
-              <span className="font-semibold text-secondaryText">{txn.customerName}</span>
+              <span className="text-[10px] text-mutedText block font-medium">Plan Name</span>
+              <span className="font-extrabold text-heading">{txn.planName} ({txn.billingCycle})</span>
+            </div>
+
+            <div className="col-span-2 border-t border-border/60 pt-2">
+              <span className="text-[10px] text-mutedText block font-medium">Customer Email</span>
+              <span className="font-semibold text-secondaryText">{txn.customerEmail}</span>
             </div>
           </div>
         </div>
 
-        {/* Action Buttons (Step 5 requirement) */}
+        {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-3">
           <Button
             variant="outline"
@@ -118,16 +133,16 @@ export const PaymentSuccessPage: React.FC = () => {
             onClick={handleDownloadInvoice}
             leftIcon={<Download className="w-4 h-4" />}
           >
-            Download Invoice
+            View Invoice
           </Button>
 
           <Button
             variant="secondary"
             className="w-full sm:w-auto"
-            onClick={() => navigate('/customer/subscriptions')}
-            leftIcon={<CreditCard className="w-4 h-4" />}
+            onClick={() => navigate('/customer/invoices')}
+            leftIcon={<FileText className="w-4 h-4" />}
           >
-            View Subscription
+            Go to My Invoices
           </Button>
 
           <Button

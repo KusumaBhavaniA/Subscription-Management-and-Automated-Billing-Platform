@@ -80,7 +80,7 @@ def _upsert_oauth_user(
         if getattr(user, "account_status", "ACTIVE") == "SUSPENDED":
             raise HTTPException(
                 status_code=403,
-                detail="ACCOUNT_SUSPENDED: Your Billing Platform account has been temporarily suspended by an administrator. Please contact Support to request account restoration."
+                detail="ACCOUNT_SUSPENDED: Your NexFlow account has been temporarily suspended by an administrator. Please contact Support to request account restoration."
             )
         if getattr(user, "account_status", "ACTIVE") == "DELETED" or getattr(user, "deleted_at", None) is not None:
             raise HTTPException(
@@ -95,7 +95,7 @@ def _upsert_oauth_user(
         if getattr(user, "account_status", "ACTIVE") == "SUSPENDED":
             raise HTTPException(
                 status_code=403,
-                detail="ACCOUNT_SUSPENDED: Your Billing Platform account has been temporarily suspended by an administrator. Please contact Support to request account restoration."
+                detail="ACCOUNT_SUSPENDED: Your NexFlow account has been temporarily suspended by an administrator. Please contact Support to request account restoration."
             )
         if getattr(user, "account_status", "ACTIVE") == "DELETED" or getattr(user, "deleted_at", None) is not None:
             raise HTTPException(

@@ -30,7 +30,7 @@ import { Subscription, SubscriptionStatus } from '../../types/subscription';
 import { Plan } from '../../types/plan';
 import { subscriptionManagementApi } from '../../services/api/subscriptionManagementApi';
 import { planApi } from '../../services/api/planApi';
-
+import { billingApi } from '../../services/api/billingApi';
 import { authService } from '../../services/authService';
 
 export const CustomerDashboard: React.FC = () => {
@@ -56,12 +56,17 @@ export const CustomerDashboard: React.FC = () => {
         }
       }
 
-      const allInvoices = getItem<Invoice[]>(STORAGE_KEYS.INVOICES, []);
-      setInvoices(
-        allInvoices.filter(
-          (inv) => inv.customerEmail.toLowerCase() === (user?.email || '').toLowerCase()
-        )
-      );
+      const dbInvoices = await billingApi.getMyInvoices();
+      if (dbInvoices && dbInvoices.length > 0) {
+        setInvoices(dbInvoices);
+      } else {
+        const allInvoices = getItem<Invoice[]>(STORAGE_KEYS.INVOICES, []);
+        setInvoices(
+          allInvoices.filter(
+            (inv) => inv.customerEmail.toLowerCase() === (user?.email || '').toLowerCase()
+          )
+        );
+      }
     } catch (err) {
       console.error(err);
     } finally {

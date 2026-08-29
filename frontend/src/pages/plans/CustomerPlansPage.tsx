@@ -157,14 +157,38 @@ export const CustomerPlansPage: React.FC = () => {
 
   const handleConfirmPurchase = () => {
     if (!selectedPlanForCheckout) return;
+    const targetPrice = getPlanPriceForCycle(selectedPlanForCheckout, checkoutCycle);
+    const currentPrice = (activeSub && activeSub.status === 'Active') ? (activeSub.amount || 0) : 0;
+    const isUpgrade = !!(activeSub && activeSub.status === 'Active' && targetPrice > currentPrice);
+    const isDowngrade = !!(activeSub && activeSub.status === 'Active' && targetPrice < currentPrice);
+    const unusedValue = (activeSub && activeSub.status === 'Active') ? currentPrice : 0;
+    const netAdjustment = (activeSub && activeSub.status === 'Active') ? Math.max(0, targetPrice - currentPrice) : targetPrice;
+    const gst = Math.round(netAdjustment * 0.10);
+    const total = netAdjustment + gst;
+
+    const calculation = {
+      newSubscriptionValue: targetPrice,
+      unusedValue,
+      adjustment: netAdjustment,
+      gst,
+      totalPayable: total,
+      isUpgrade,
+      isDowngrade,
+      currentPlanName: activeSub?.planName || null,
+      targetPlanName: selectedPlanForCheckout.name,
+      billingCycle: checkoutCycle,
+    };
+
     setIsCheckoutModalOpen(false);
     navigate('/customer/payment', {
       state: {
         plan: selectedPlanForCheckout,
         billingCycle: checkoutCycle,
+        calculation,
       },
     });
   };
+
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
@@ -408,12 +432,24 @@ export const CustomerPlansPage: React.FC = () => {
           size="md"
         >
           <div className="space-y-5 text-xs">
-            <div className="p-4 rounded-xl bg-secondary border border-border space-y-2">
-              <div className="flex items-center justify-between">
-                <h3 className="text-base font-extrabold text-heading">{selectedPlanForCheckout.name}</h3>
-                <Badge variant="brand">{checkoutCycle}</Badge>
+            {/* CURRENT SUBSCRIPTION SECTION */}
+            {activeSub && activeSub.status === 'Active' && (
+              <div className="p-3.5 rounded-xl bg-secondary border border-border space-y-1">
+                <span className="text-[10px] font-bold text-mutedText uppercase tracking-wider block">Current Subscription</span>
+                <div className="flex justify-between font-bold text-heading">
+                  <span>{activeSub.planName} ({activeSub.billingCycle || 'Monthly'})</span>
+                  <span>{formatCurrency(activeSub.amount || 0)}</span>
+                </div>
               </div>
-              <p className="text-xs text-secondaryText leading-relaxed">{selectedPlanForCheckout.description}</p>
+            )}
+
+            {/* NEW SUBSCRIPTION SECTION */}
+            <div className="p-3.5 rounded-xl bg-primary/10 border border-primary/20 space-y-1">
+              <span className="text-[10px] font-bold text-primary uppercase tracking-wider block">New Subscription</span>
+              <div className="flex justify-between font-extrabold text-heading">
+                <span>{selectedPlanForCheckout.name} ({checkoutCycle})</span>
+                <span className="text-primary">{formatCurrency(getPlanPriceForCycle(selectedPlanForCheckout, checkoutCycle))}</span>
+              </div>
             </div>
 
             {/* Cycle Selector in Checkout */}
@@ -465,22 +501,44 @@ export const CustomerPlansPage: React.FC = () => {
             <div className="p-4 rounded-xl border border-border bg-card space-y-2">
               <span className="text-[10px] font-bold text-mutedText uppercase tracking-wider block">Price Breakdown</span>
               {(() => {
-                const subtotal = getPlanPriceForCycle(selectedPlanForCheckout, checkoutCycle);
-                const tax = Math.round(subtotal * 0.18);
-                const total = subtotal + tax;
+                const targetPrice = getPlanPriceForCycle(selectedPlanForCheckout, checkoutCycle);
+                const currentPrice = (activeSub && activeSub.status === 'Active') ? (activeSub.amount || 0) : 0;
+                
+                let changeLabel = 'Subscription';
+                if (activeSub && activeSub.status === 'Active') {
+                  if (targetPrice > currentPrice) changeLabel = 'Upgrade';
+                  else if (targetPrice < currentPrice) changeLabel = 'Downgrade';
+                  else if ((activeSub.billingCycle || 'Monthly') !== checkoutCycle) changeLabel = 'Billing Cycle Change';
+                }
+
+                const unusedValue = currentPrice;
+                const netAdjustment = (activeSub && activeSub.status === 'Active') ? Math.max(0, targetPrice - currentPrice) : targetPrice;
+                const tax = Math.round(netAdjustment * 0.10); // GST 10%!
+                const total = netAdjustment + tax;
+
                 return (
                   <div className="space-y-1.5 text-xs">
+                    {activeSub && activeSub.status === 'Active' && (
+                      <div className="flex justify-between text-secondaryText">
+                        <span>Current Unused Value</span>
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400">-{formatCurrency(unusedValue)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between text-secondaryText">
-                      <span>Subtotal ({checkoutCycle})</span>
-                      <span className="font-bold text-heading">{formatCurrency(subtotal)}</span>
+                      <span>New Subscription Value ({checkoutCycle})</span>
+                      <span className="font-bold text-heading">{formatCurrency(targetPrice)}</span>
                     </div>
                     <div className="flex justify-between text-secondaryText">
-                      <span>GST (18%)</span>
+                      <span>{changeLabel} Adjustment</span>
+                      <span className="font-bold text-heading">{formatCurrency(netAdjustment)}</span>
+                    </div>
+                    <div className="flex justify-between text-secondaryText">
+                      <span>GST (10%)</span>
                       <span className="font-bold text-heading">{formatCurrency(tax)}</span>
                     </div>
                     <div className="flex justify-between pt-2 border-t border-border font-extrabold text-sm text-heading">
                       <span>Total Amount Payable</span>
-                      <span className="text-emerald-600 dark:text-emerald-400">{formatCurrency(total)}</span>
+                      <span className="text-primary text-base">{formatCurrency(total)}</span>
                     </div>
                   </div>
                 );
@@ -507,9 +565,9 @@ export const CustomerPlansPage: React.FC = () => {
                       disabled={modalActionInfo.isCurrent || isSubmitting}
                       isLoading={isSubmitting}
                       onClick={handleConfirmPurchase}
-                      leftIcon={!modalActionInfo.isCurrent ? <Zap className="w-4 h-4" /> : undefined}
+                      rightIcon={!modalActionInfo.isCurrent ? <ArrowRight className="w-4 h-4" /> : undefined}
                     >
-                      {modalActionInfo.isCurrent ? 'Current Active Plan' : 'Confirm & Activate Subscription'}
+                      {modalActionInfo.isCurrent ? 'Current Active Plan' : 'Proceed to Demo Payment'}
                     </Button>
                   </div>
                 </>

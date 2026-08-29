@@ -17,6 +17,7 @@ import {
   Loader2,
   X,
   Check,
+  FlaskConical,
 } from 'lucide-react';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
@@ -25,11 +26,14 @@ import { formatCurrency } from '../../utils/formatters';
 import { useAuth } from '../../hooks/useAuth';
 import { planApi } from '../../services/api/planApi';
 import { paymentApi, CouponResult, PaymentOrderRequest } from '../../services/api/paymentApi';
+import { billingApi } from '../../services/api/billingApi';
 import { Plan } from '../../types/plan';
-
 import { SuspendedActionModal } from '../../components/common/SuspendedActionModal';
 
-type PaymentMethodType = 'upi' | 'credit-card' | 'debit-card' | 'net-banking' | 'wallet';
+
+
+
+type PaymentMethodType = 'upi' | 'credit-card' | 'debit-card' | 'net-banking' | 'wallet' | 'demo';
 
 export const PaymentPage: React.FC = () => {
   const { user } = useAuth();
@@ -40,10 +44,26 @@ export const PaymentPage: React.FC = () => {
   const [isSuspendedModalOpen, setIsSuspendedModalOpen] = useState(false);
 
   // State from router or fallback default plan
-  const locationState = location.state as { plan?: Plan; billingCycle?: 'Monthly' | 'Quarterly' | 'Yearly' } | null;
+  const locationState = location.state as {
+    plan?: Plan;
+    billingCycle?: 'Monthly' | 'Quarterly' | 'Yearly';
+    calculation?: {
+      newSubscriptionValue: number;
+      unusedValue: number;
+      adjustment: number;
+      gst: number;
+      totalPayable: number;
+      isUpgrade: boolean;
+      isDowngrade: boolean;
+      currentPlanName: string | null;
+      targetPlanName: string;
+      billingCycle: string;
+    };
+  } | null;
 
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(locationState?.plan || null);
   const [billingCycle, setBillingCycle] = useState<'Monthly' | 'Quarterly' | 'Yearly'>(locationState?.billingCycle || 'Monthly');
+  const [calculationData, setCalculationData] = useState<any>(locationState?.calculation || null);
   const [isLoadingPlans, setIsLoadingPlans] = useState(!locationState?.plan);
 
   // Customer profile state
@@ -51,12 +71,13 @@ export const PaymentPage: React.FC = () => {
   const customerEmail = user?.email || 'customer@example.com';
   const customerPhone = (user as any)?.phone || '+91 98765 43210';
 
-  // Editable Billing Address
+  // Editable Billing Address dynamically sourced from customer Profile
   const [billingAddress, setBillingAddress] = useState({
-    country: 'India',
-    state: 'Maharashtra',
-    city: 'Mumbai',
-    zipCode: '400001',
+    country: user?.country || 'India',
+    state: user?.state || 'Maharashtra',
+    city: user?.city || 'Mumbai',
+    zipCode: user?.zipCode || '400001',
+    address: user?.address || '',
   });
 
   // Coupon state
@@ -91,6 +112,7 @@ export const PaymentPage: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStage, setProcessingStage] = useState('Processing Payment...');
   const [simulateFailure, setSimulateFailure] = useState(false);
+  const [simulateCancel, setSimulateCancel] = useState(false);
 
   // Load plan fallback if accessed directly
   useEffect(() => {
@@ -105,6 +127,34 @@ export const PaymentPage: React.FC = () => {
       });
     }
   }, [selectedPlan]);
+
+  // Sync calculation from backend single source of truth
+  useEffect(() => {
+    if (selectedPlan) {
+      const price = billingCycle === 'Monthly'
+        ? selectedPlan.priceMonthly
+        : billingCycle === 'Quarterly'
+        ? selectedPlan.priceQuarterly || Math.round(selectedPlan.priceMonthly * 3 * 0.9)
+        : selectedPlan.priceYearly;
+
+      billingApi.calculateBilling(selectedPlan.name, billingCycle, price).then((res) => {
+        if (res && res.success) {
+          setCalculationData({
+            newSubscriptionValue: res.new_subscription_value,
+            unusedValue: res.unused_value,
+            adjustment: res.upgrade_adjustment,
+            gst: res.gst_amount,
+            totalPayable: res.total_payable,
+            isUpgrade: res.is_upgrade,
+            isDowngrade: res.is_downgrade,
+            currentPlanName: res.current_plan_name,
+            targetPlanName: res.new_plan_name,
+            billingCycle: res.billing_cycle,
+          });
+        }
+      });
+    }
+  }, [selectedPlan, billingCycle]);
 
   // Handle Coupon Apply
   const handleApplyCoupon = async () => {
@@ -158,8 +208,8 @@ export const PaymentPage: React.FC = () => {
     setCvv(raw);
   };
 
-  // Calculations for Order Summary (Step 7)
-  const basePrice = selectedPlan
+  // Calculations for Order Summary based on backend calculation
+  const rawBasePrice = selectedPlan
     ? billingCycle === 'Monthly'
       ? selectedPlan.priceMonthly
       : billingCycle === 'Quarterly'
@@ -167,19 +217,24 @@ export const PaymentPage: React.FC = () => {
       : selectedPlan.priceYearly
     : 0;
 
-  // Yearly/Quarterly discount included or calculate coupon discount
+  const isUpgrade = !!(calculationData?.isUpgrade && calculationData?.unusedValue > 0);
+  const newSubValue = calculationData?.newSubscriptionValue || rawBasePrice;
+  const unusedValue = calculationData?.unusedValue || 0;
+  const adjustmentValue = isUpgrade ? (calculationData?.adjustment || Math.max(0, newSubValue - unusedValue)) : rawBasePrice;
+
+  // Coupon discount
   let couponDiscountAmount = 0;
   if (appliedCoupon) {
     if (appliedCoupon.discountType === 'percentage') {
-      couponDiscountAmount = Math.round((basePrice * appliedCoupon.value) / 100);
+      couponDiscountAmount = Math.round((adjustmentValue * appliedCoupon.value) / 100);
     } else {
-      couponDiscountAmount = Math.min(basePrice, appliedCoupon.value);
+      couponDiscountAmount = Math.min(adjustmentValue, appliedCoupon.value);
     }
   }
 
-  const subtotalAfterCoupon = Math.max(0, basePrice - couponDiscountAmount);
-  const gstAmount = Math.round(subtotalAfterCoupon * 0.18);
-  const totalPayable = subtotalAfterCoupon + gstAmount;
+  const subtotalAfterCoupon = Math.max(0, adjustmentValue - couponDiscountAmount);
+  const gstAmount = calculationData?.gst !== undefined && !appliedCoupon ? calculationData.gst : Math.round(subtotalAfterCoupon * 0.10);
+  const totalPayable = calculationData?.totalPayable !== undefined && !appliedCoupon ? calculationData.totalPayable : (subtotalAfterCoupon + gstAmount);
 
   // Savings for quarterly / yearly
   const savingsAmount =
@@ -223,7 +278,7 @@ export const PaymentPage: React.FC = () => {
         planName: selectedPlan.name,
         billingCycle,
         amount: totalPayable,
-        subtotal: basePrice,
+        subtotal: adjustmentValue,
         gst: gstAmount,
         discount: couponDiscountAmount,
         couponCode: appliedCoupon?.code,
@@ -239,11 +294,34 @@ export const PaymentPage: React.FC = () => {
         },
       };
 
+
       try {
-        const result = await paymentApi.verifyPayment(orderData, simulateFailure);
+        const result = await paymentApi.verifyPayment(orderData, simulateFailure, simulateCancel);
         setIsProcessing(false);
         if (result.success) {
+          // Trigger email notification (non-blocking for payment validity)
+          fetch('http://localhost:8000/auth/email/payment-success', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to_email: customerEmail,
+              customer_name: customerName,
+              plan_name: selectedPlan.name,
+              amount_paid: totalPayable,
+              payment_date: result.paymentDate,
+              payment_method: paymentMethod === 'demo' ? 'Demo Payment' : paymentMethod.toUpperCase(),
+              transaction_id: result.transactionId,
+              invoice_id: result.invoiceId || 'INV-2026-001',
+            }),
+          }).catch((e) => console.warn('Payment success email trigger notification log:', e));
+
           navigate('/customer/payment-success', { state: { transaction: result } });
+        } else if (result.isAuthError || result.failureReason?.toLowerCase().includes('session has expired') || result.failureReason?.toLowerCase().includes('log in again')) {
+          navigate('/login', {
+            state: {
+              message: 'Your session has expired. Please log in again to complete your payment.',
+            },
+          });
         } else {
           navigate('/customer/payment-failed', {
             state: {
@@ -363,10 +441,27 @@ export const PaymentPage: React.FC = () => {
 
             {/* Price Breakdown */}
             <div className="space-y-2.5 pt-3 border-t border-border text-xs">
-              <div className="flex justify-between text-secondaryText">
-                <span>Plan Price ({billingCycle})</span>
-                <span className="font-bold text-heading">{formatCurrency(basePrice)}</span>
-              </div>
+              {isUpgrade ? (
+                <>
+                  <div className="flex justify-between text-secondaryText">
+                    <span>New Subscription Value ({billingCycle})</span>
+                    <span className="font-bold text-heading">{formatCurrency(newSubValue)}</span>
+                  </div>
+                  <div className="flex justify-between text-secondaryText">
+                    <span>Current Unused Value</span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400">-{formatCurrency(unusedValue)}</span>
+                  </div>
+                  <div className="flex justify-between text-secondaryText">
+                    <span>Upgrade Adjustment</span>
+                    <span className="font-bold text-heading">{formatCurrency(adjustmentValue)}</span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex justify-between text-secondaryText">
+                  <span>Plan Price ({billingCycle})</span>
+                  <span className="font-bold text-heading">{formatCurrency(rawBasePrice)}</span>
+                </div>
+              )}
 
               {appliedCoupon && (
                 <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-semibold">
@@ -378,7 +473,7 @@ export const PaymentPage: React.FC = () => {
               )}
 
               <div className="flex justify-between text-secondaryText">
-                <span>GST (18%)</span>
+                <span>GST (10%)</span>
                 <span className="font-bold text-heading">{formatCurrency(gstAmount)}</span>
               </div>
 
@@ -387,7 +482,7 @@ export const PaymentPage: React.FC = () => {
                 <span className="font-bold text-emerald-600 dark:text-emerald-400 uppercase text-[10px]">Free</span>
               </div>
 
-              {savingsAmount > 0 && (
+              {savingsAmount > 0 && !isUpgrade && (
                 <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-2">
                   <Sparkles className="w-4 h-4 shrink-0" />
                   <span>
@@ -400,6 +495,7 @@ export const PaymentPage: React.FC = () => {
 
               <div className="flex justify-between items-baseline pt-3 border-t border-border font-black text-base text-heading">
                 <span>Total Payable</span>
+
                 <span className="text-xl text-primary">{formatCurrency(totalPayable)}</span>
               </div>
             </div>
@@ -552,13 +648,14 @@ export const PaymentPage: React.FC = () => {
             </div>
 
             {/* Payment Method Selector Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
               {[
                 { id: 'upi', label: 'UPI', icon: Smartphone },
                 { id: 'credit-card', label: 'Credit Card', icon: CreditCard },
                 { id: 'debit-card', label: 'Debit Card', icon: CreditCard },
                 { id: 'net-banking', label: 'Net Banking', icon: Building2 },
                 { id: 'wallet', label: 'Wallets', icon: Wallet },
+                { id: 'demo', label: 'Demo Payment', icon: FlaskConical, isDemo: true },
               ].map((method) => {
                 const Icon = method.icon;
                 const isSelected = paymentMethod === method.id;
@@ -567,14 +664,19 @@ export const PaymentPage: React.FC = () => {
                     key={method.id}
                     type="button"
                     onClick={() => setPaymentMethod(method.id as PaymentMethodType)}
-                    className={`p-3 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1.5 ${
+                    className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 relative ${
                       isSelected
                         ? 'border-primary bg-primary/10 text-primary font-extrabold shadow-sm ring-1 ring-primary/30'
                         : 'border-border bg-card text-secondaryText hover:border-borderHover hover:text-primaryText'
                     }`}
                   >
-                    <Icon className="w-5 h-5" />
-                    <span className="text-xs font-bold leading-tight">{method.label}</span>
+                    {method.isDemo && (
+                      <span className="absolute -top-1.5 -right-1 px-1.5 py-0.2 bg-amber-500 text-[8px] font-black text-slate-950 rounded-full uppercase tracking-tighter shadow-sm">
+                        TEST
+                      </span>
+                    )}
+                    <Icon className={`w-4 h-4 ${method.isDemo ? 'text-purple-500' : ''}`} />
+                    <span className="text-[11px] font-bold leading-tight">{method.label}</span>
                   </button>
                 );
               })}
@@ -810,6 +912,73 @@ export const PaymentPage: React.FC = () => {
 
                   <Button variant="primary" className="w-full py-3 mt-4" onClick={handlePayNow}>
                     Continue with {selectedWallet}
+                  </Button>
+                </div>
+              )}
+
+              {/* 6. DEMO PAYMENT TESTING PANEL */}
+              {paymentMethod === 'demo' && (
+                <div className="space-y-5 border border-purple-500/30 bg-purple-500/5 p-5 rounded-2xl">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400">
+                        <FlaskConical className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-extrabold text-heading">Demo Payment</h3>
+                        <p className="text-[11px] text-secondaryText">Test the complete payment and billing workflow</p>
+                      </div>
+                    </div>
+                    <Badge variant="warning" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 text-[10px] uppercase tracking-wider font-extrabold">
+                      TEST MODE
+                    </Badge>
+                  </div>
+
+                  {isSuspended ? (
+                    <div className="p-4 rounded-xl bg-danger/10 border border-danger/30 text-xs text-danger font-semibold space-y-1">
+                      <p className="font-extrabold">Account Suspended</p>
+                      <p>Your account is currently suspended. Payments and subscription purchases are disabled. Please contact Support to request restoration.</p>
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-xl bg-card border border-border space-y-3 text-xs shadow-sm">
+                      <p className="text-[11px] text-secondaryText italic font-medium">
+                        This payment method is for testing the NexFlow payment workflow.
+                      </p>
+                      <div className="flex justify-between items-center pb-2.5 border-b border-border">
+                        <span className="text-mutedText font-semibold">Amount:</span>
+                        <span className="font-black text-primary text-base">{formatCurrency(totalPayable)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2.5 border-b border-border">
+                        <span className="text-mutedText font-semibold">Customer:</span>
+                        <span className="font-extrabold text-heading">{customerName}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-mutedText font-semibold">Email:</span>
+                        <span className="font-semibold text-secondaryText">{customerEmail}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between bg-card/60 p-3 rounded-xl border border-border">
+                    <span className="text-xs font-bold text-heading">Failure Testing Option</span>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={simulateFailure}
+                        onChange={(e) => setSimulateFailure(e.target.checked)}
+                        className="rounded border-border text-danger focus:ring-danger w-4 h-4 cursor-pointer"
+                      />
+                      <span className="text-xs font-bold text-danger">Simulate Payment Failure</span>
+                    </label>
+                  </div>
+
+                  <Button
+                    variant="primary"
+                    className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-extrabold shadow-md transition-all cursor-pointer"
+                    onClick={handlePayNow}
+                    disabled={isSuspended}
+                  >
+                    Confirm Demo Payment
                   </Button>
                 </div>
               )}

@@ -11,6 +11,9 @@ export interface User {
   email: string;
   phoneNumber?: string;
   address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
   country?: string;
   role: UserRole;
   createdAt: string;

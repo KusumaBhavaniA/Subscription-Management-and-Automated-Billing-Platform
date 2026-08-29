@@ -11,6 +11,7 @@ export default defineConfig({
     },
   },
   server: {
+    host: true,
     port: 3000,
     open: true,
     proxy: {
@@ -20,7 +21,7 @@ export default defineConfig({
       // OAuth redirect — it must stay on the frontend, so it's excluded via
       // `bypass` rather than being carved out with a narrower prefix.
       '/auth': {
-        target: 'http://localhost:8000',
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
         bypass: (req) => {
           if (req.url && req.url.startsWith('/auth/callback')) {
@@ -33,8 +34,8 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
       },
-      '/billing': {
-        target: 'http://localhost:8000',
+      '/invoices': {
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
       },
     },

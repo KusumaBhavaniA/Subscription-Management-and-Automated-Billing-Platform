@@ -107,7 +107,7 @@ export const ResetPasswordPage: React.FC = () => {
           </Link>
           <div className="flex items-center gap-2">
             <BPLogo size="sm" />
-            <span className="font-bold text-sm text-heading">Billing Platform</span>
+            <span className="font-bold text-sm text-heading">NexFlow</span>
           </div>
         </div>
 

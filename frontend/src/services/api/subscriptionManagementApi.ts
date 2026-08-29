@@ -11,11 +11,13 @@ const PLAN_PRICES: Record<string, { monthly: number; quarterly: number; yearly: 
   'Enterprise Scale': { monthly: 14999, quarterly: 40499, yearly: 149990 },
 };
 
+export const getPlanCyclePrice = (planName: string, cycle: 'Monthly' | 'Quarterly' | 'Yearly'): number => {
+  const info = PLAN_PRICES[planName] || { monthly: 1999, quarterly: 5399, yearly: 19990 };
+  return info[cycle.toLowerCase() as keyof typeof info] || info.monthly;
+};
+
 const getPlanPrice = (planName: string, cycle: BillingCycle) => {
-  const info = PLAN_PRICES[planName] || { monthly: 4999, quarterly: 13499, yearly: 49990 };
-  if (cycle === 'Monthly') return info.monthly;
-  if (cycle === 'Quarterly') return info.quarterly;
-  return info.yearly;
+  return getPlanCyclePrice(planName, cycle);
 };
 
 const getPlanMonthlyMrr = (planName: string, cycle: BillingCycle) => {
@@ -50,16 +52,87 @@ const pushNotification = (title: NotificationType, message: string, type: 'info'
   setItem(STORAGE_KEYS.NOTIFICATIONS, notifs);
 };
 
+const getAuthToken = (): string | null => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.AUTH);
+    if (!raw) return null;
+    if (raw.startsWith('{')) {
+      const parsed = JSON.parse(raw);
+      return parsed.token || parsed.access_token || parsed.user?.token || null;
+    }
+    return raw;
+  } catch {
+    return null;
+  }
+};
+
 export const subscriptionManagementApi = {
   getSubscriptions: async (): Promise<Subscription[]> => {
-    return getItem<Subscription[]>(STORAGE_KEYS.SUBSCRIPTIONS, INITIAL_SUBSCRIPTIONS);
+    const token = getAuthToken();
+    try {
+      const res = await fetch('http://localhost:8000/admin/subscriptions', {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.subscriptions)) {
+          return data.subscriptions as Subscription[];
+        }
+      }
+    } catch (e) {
+      console.warn('GET /admin/subscriptions error:', e);
+    }
+    return getItem<Subscription[]>(STORAGE_KEYS.SUBSCRIPTIONS, []);
+  },
+
+
+  getMySubscription: async (): Promise<Subscription | null> => {
+    const token = getAuthToken();
+    try {
+      const res = await fetch('http://localhost:8000/subscriptions/me', {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.subscription) {
+          return data.subscription as Subscription;
+        }
+      }
+    } catch (e) {
+      console.warn('GET /subscriptions/me error:', e);
+    }
+    return null;
   },
 
   getSubscriptionByEmail: async (email: string): Promise<Subscription | null> => {
     if (!email) return null;
-    const list = getItem<Subscription[]>(STORAGE_KEYS.SUBSCRIPTIONS, INITIAL_SUBSCRIPTIONS);
+    const token = getAuthToken();
+    try {
+      const res = await fetch('http://localhost:8000/subscriptions/me', {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.subscription) {
+          return data.subscription as Subscription;
+        }
+      }
+    } catch (e) {
+      console.warn('GET /subscriptions/me error:', e);
+    }
+    const list = getItem<Subscription[]>(STORAGE_KEYS.SUBSCRIPTIONS, []);
     return list.find((s) => s.customerEmail.toLowerCase() === email.toLowerCase()) || null;
   },
+
 
   /**
    * Sync customer record MRR & Subscription Status in storage & active session
@@ -87,11 +160,19 @@ export const subscriptionManagementApi = {
     }
 
     // Sync Active Auth session if logged in
-    const authSession = getItem<StoredUser | null>(STORAGE_KEYS.AUTH, null);
-    if (authSession && authSession.email.toLowerCase() === cleanEmail) {
-      authSession.currentPlan = planName;
-      authSession.subscriptionStatus = status;
-      setItem(STORAGE_KEYS.AUTH, authSession);
+    const authSession = getItem<any>(STORAGE_KEYS.AUTH, null);
+    if (authSession) {
+      const targetEmail = authSession.user?.email || authSession.email;
+      if (targetEmail && targetEmail.toLowerCase() === cleanEmail) {
+        if (authSession.user) {
+          authSession.user.currentPlan = planName;
+          authSession.user.subscriptionStatus = status;
+        } else {
+          authSession.currentPlan = planName;
+          authSession.subscriptionStatus = status;
+        }
+        setItem(STORAGE_KEYS.AUTH, authSession);
+      }
     }
   },
 
@@ -137,47 +218,103 @@ export const subscriptionManagementApi = {
   },
 
   /**
-   * Upgrade Subscription
+   * Calculate upgrade proration details
    */
-  upgradeSubscription: async (subscriptionId: string, targetPlan: string = 'Enterprise Scale'): Promise<Subscription> => {
-    const list = getItem<Subscription[]>(STORAGE_KEYS.SUBSCRIPTIONS, INITIAL_SUBSCRIPTIONS);
-    const idx = list.findIndex((s) => s.id === subscriptionId);
-    if (idx === -1) throw new Error('Subscription not found');
+  calculateUpgradeProration: (subscription: Subscription, targetPlan: string) => {
+    const cycle = subscription.billingCycle || 'Monthly';
+    const oldPrice = subscription.amount || getPlanPrice(subscription.planName, cycle);
+    const newPrice = getPlanPrice(targetPlan, cycle);
 
-    const cycle = list[idx].billingCycle || 'Monthly';
-    const price = getPlanPrice(targetPlan, cycle);
-    const mrr = getPlanMonthlyMrr(targetPlan, cycle);
+    const startDate = new Date(subscription.startDate || Date.now());
+    const endDate = new Date(subscription.nextBillingDate || Date.now() + 30 * 86400000);
+    const now = new Date();
 
-    list[idx].planName = targetPlan;
-    list[idx].status = 'Active';
-    list[idx].amount = price;
+    const totalDays = Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 3600 * 24)));
+    const daysRemaining = Math.max(0, Math.round((endDate.getTime() - now.getTime()) / (1000 * 3600 * 24)));
 
-    setItem(STORAGE_KEYS.SUBSCRIPTIONS, list);
-    subscriptionManagementApi.syncCustomerRecord(list[idx].customerEmail, targetPlan, 'Active', mrr);
-    pushNotification('Subscription Upgraded', `Your subscription was upgraded to ${targetPlan}.`, 'success');
-    return list[idx];
+    const unusedCredit = Math.round((oldPrice * daysRemaining) / totalDays);
+    const newProratedCost = Math.round((newPrice * daysRemaining) / totalDays);
+    const amountDueToday = Math.max(0, newProratedCost - unusedCredit);
+
+    return {
+      currentPlan: subscription.planName,
+      currentPrice: oldPrice,
+      targetPlan,
+      targetPrice: newPrice,
+      daysRemaining,
+      totalDays,
+      unusedCredit,
+      newProratedCost,
+      amountDueToday,
+      nextRenewalAmount: newPrice,
+    };
   },
 
   /**
-   * Downgrade Subscription
+   * Upgrade Subscription with Proration & Backend DB Update
+   */
+  upgradeSubscription: async (
+    subscriptionId: string,
+    targetPlan: string = 'Enterprise Scale',
+    simulateFailure: boolean = false
+  ): Promise<Subscription> => {
+    const token = getAuthToken();
+    try {
+      const res = await fetch('http://localhost:8000/subscriptions/upgrade', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          target_plan_name: targetPlan,
+          simulate_failure: simulateFailure,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Upgrade payment failed. Current plan remains active.');
+      }
+    } catch (err: any) {
+      console.warn('Backend upgrade API error:', err);
+      throw err;
+    }
+
+    const sub = await subscriptionManagementApi.getSubscriptionByEmail(getItem<any>(STORAGE_KEYS.AUTH, null)?.user?.email || '');
+    if (!sub) throw new Error('Upgrade process completed.');
+    return sub;
+  },
+
+  /**
+   * Downgrade Subscription via Backend DB
    */
   downgradeSubscription: async (subscriptionId: string, targetPlan: string = 'Starter Tier'): Promise<Subscription> => {
-    const list = getItem<Subscription[]>(STORAGE_KEYS.SUBSCRIPTIONS, INITIAL_SUBSCRIPTIONS);
-    const idx = list.findIndex((s) => s.id === subscriptionId);
-    if (idx === -1) throw new Error('Subscription not found');
+    const token = getAuthToken();
+    try {
+      const res = await fetch('http://localhost:8000/subscriptions/downgrade', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          target_plan_name: targetPlan,
+        }),
+      });
 
-    const cycle = list[idx].billingCycle || 'Monthly';
-    const price = getPlanPrice(targetPlan, cycle);
-    const mrr = getPlanMonthlyMrr(targetPlan, cycle);
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Downgrade request failed.');
+      }
+    } catch (err: any) {
+      console.warn('Backend downgrade API error:', err);
+      throw err;
+    }
 
-    list[idx].planName = targetPlan;
-    list[idx].status = 'Active';
-    list[idx].amount = price;
-
-    setItem(STORAGE_KEYS.SUBSCRIPTIONS, list);
-    subscriptionManagementApi.syncCustomerRecord(list[idx].customerEmail, targetPlan, 'Active', mrr);
-    pushNotification('Subscription Downgraded', `Your subscription was downgraded to ${targetPlan}.`, 'warning');
-    return list[idx];
+    const sub = await subscriptionManagementApi.getSubscriptionByEmail(getItem<any>(STORAGE_KEYS.AUTH, null)?.user?.email || '');
+    if (!sub) throw new Error('Downgrade completed.');
+    return sub;
   },
 
   /**
@@ -196,18 +333,36 @@ export const subscriptionManagementApi = {
   },
 
   /**
-   * Cancel Subscription
+   * Cancel Subscription with Prorated Refund via Backend DB
    */
-  cancelSubscription: async (subscriptionId: string): Promise<Subscription> => {
-    const list = getItem<Subscription[]>(STORAGE_KEYS.SUBSCRIPTIONS, INITIAL_SUBSCRIPTIONS);
-    const idx = list.findIndex((s) => s.id === subscriptionId);
-    if (idx === -1) throw new Error('Subscription not found');
+  cancelSubscription: async (subscriptionId: string): Promise<{ subscription: Subscription; refundAmount: number }> => {
+    const token = getAuthToken();
+    let refundAmount = 0;
+    try {
+      const res = await fetch('http://localhost:8000/subscriptions/cancel', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          reason: 'Customer cancellation',
+        }),
+      });
 
-    list[idx].status = 'Cancelled';
-    setItem(STORAGE_KEYS.SUBSCRIPTIONS, list);
-    subscriptionManagementApi.syncCustomerRecord(list[idx].customerEmail, list[idx].planName, 'Cancelled', 0);
-    pushNotification('Subscription Cancelled', `Your ${list[idx].planName} subscription has been cancelled.`, 'error');
-    return list[idx];
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        const errorMsg = typeof data.detail === 'string' ? data.detail : (data.message || 'Cancellation request failed.');
+        throw new Error(errorMsg);
+      }
+      refundAmount = data.refund_amount || 0;
+    } catch (err: any) {
+      console.warn('Backend cancel API error:', err);
+      throw err;
+    }
+
+    const sub = await subscriptionManagementApi.getSubscriptionByEmail(getItem<any>(STORAGE_KEYS.AUTH, null)?.user?.email || '');
+    return { subscription: sub || ({ status: 'Cancelled' } as any), refundAmount };
   },
 
   /**

@@ -16,6 +16,7 @@ export const SocialAuthButtons: React.FC<SocialAuthButtonsProps> = ({ isLoading,
   const [socialLoading, setSocialLoading] = useState<string | null>(null);
 
   // Admin accounts must NEVER use social login.
+  // Social authentication is strictly restricted to Customer accounts.
   if (role === 'Admin') return null;
 
   const handleSocialAuth = async (provider: 'Google' | 'Microsoft' | 'Apple') => {
@@ -23,23 +24,42 @@ export const SocialAuthButtons: React.FC<SocialAuthButtonsProps> = ({ isLoading,
 
     setSocialLoading(provider);
     try {
-      // Direct social authentication session creation
+      // 1. Try redirecting to official Backend OAuth endpoint GET /auth/{provider}/login
+      const backendOAuthUrl = authApi.getOAuthLoginUrl(provider);
+      window.location.assign(backendOAuthUrl);
+      return;
+
+      // Check if backend responds with redirect or 200
+      try {
+        const res = await fetch(backendOAuthUrl, { method: 'HEAD', redirect: 'follow' });
+        if (res.ok || res.redirected) {
+          window.location.href = backendOAuthUrl;
+          return;
+        }
+      } catch {
+        // Fallback to seamless client-side OAuth flow
+      }
+
+      // 2. Perform OAuth session creation & Customer account registration.
+      // Backend must determine role — frontend never elevates privileges.
       const session = await socialLogin(provider);
       if (session.user.role === 'Admin') {
+        // Safety guard: social login must never authenticate Admin accounts.
+        console.warn('Social login returned Admin role — access denied.');
         navigate('/login');
         return;
       }
       if (!session.user.phoneNumber || !session.user.phoneNumber?.trim()) {
-        navigate('/customer/profile?completeMobile=true', {
+        navigate('/profile?completeMobile=true', {
           state: {
-            message: `${provider} login successful. Please update your profile details.`,
+            message: 'Google login successful. Please enter your mobile number to complete your profile setup.',
           },
         });
       } else {
         navigate('/customer/dashboard');
       }
     } catch (err: any) {
-      console.error('Social login failed:', err);
+      console.error('OAuth Authentication failed:', err);
     } finally {
       setSocialLoading(null);
     }
@@ -56,14 +76,14 @@ export const SocialAuthButtons: React.FC<SocialAuthButtonsProps> = ({ isLoading,
         </span>
       </div>
 
-      <div className="grid grid-cols-3 gap-2.5">
+      <div>
         {/* Google */}
         <button
           type="button"
           disabled={isLoading || !!socialLoading || !ENABLED_OAUTH_PROVIDERS.Google}
           onClick={() => handleSocialAuth('Google')}
           title={ENABLED_OAUTH_PROVIDERS.Google ? 'Sign in with Google' : 'Google login coming soon'}
-          className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border border-border bg-secondary/60 text-primaryText text-xs font-bold transition-all ${
+          className={`w-full flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-xl border border-border bg-secondary/60 text-primaryText text-xs font-bold transition-all ${
             ENABLED_OAUTH_PROVIDERS.Google
               ? 'hover:bg-secondary cursor-pointer disabled:opacity-50'
               : 'cursor-not-allowed opacity-60'
@@ -91,61 +111,8 @@ export const SocialAuthButtons: React.FC<SocialAuthButtonsProps> = ({ isLoading,
               />
             </svg>
           )}
-          <span className="hidden sm:inline">Google</span>
+          <span>Google</span>
           {!ENABLED_OAUTH_PROVIDERS.Google && (
-            <span className="text-[9px] font-normal text-mutedText whitespace-nowrap">(Coming Soon)</span>
-          )}
-        </button>
-
-        {/* Microsoft */}
-        <button
-          type="button"
-          disabled={isLoading || !!socialLoading || !ENABLED_OAUTH_PROVIDERS.Microsoft}
-          onClick={() => handleSocialAuth('Microsoft')}
-          title={ENABLED_OAUTH_PROVIDERS.Microsoft ? 'Sign in with Microsoft' : 'Microsoft login coming soon'}
-          className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl border border-border bg-secondary/60 text-primaryText text-xs font-bold transition-all ${
-            ENABLED_OAUTH_PROVIDERS.Microsoft
-              ? 'hover:bg-secondary cursor-pointer disabled:opacity-50'
-              : 'cursor-not-allowed opacity-60 select-none'
-          }`}
-        >
-          {socialLoading === 'Microsoft' ? (
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary" />
-          ) : (
-            <svg className={`w-4 h-4 shrink-0 ${!ENABLED_OAUTH_PROVIDERS.Microsoft ? 'opacity-70' : ''}`} viewBox="0 0 23 23">
-              <path fill="#f35325" d="M1 1h10v10H1z" />
-              <path fill="#81bc06" d="M12 1h10v10H1z" />
-              <path fill="#05a6f0" d="M1 12h10v10H1z" />
-              <path fill="#ffba08" d="M12 12h10v10H12z" />
-            </svg>
-          )}
-          <span className="hidden sm:inline">Microsoft</span>
-          {!ENABLED_OAUTH_PROVIDERS.Microsoft && (
-            <span className="text-[9px] font-normal text-mutedText whitespace-nowrap">(Coming Soon)</span>
-          )}
-        </button>
-
-        {/* Apple */}
-        <button
-          type="button"
-          disabled={isLoading || !!socialLoading || !ENABLED_OAUTH_PROVIDERS.Apple}
-          onClick={() => handleSocialAuth('Apple')}
-          title={ENABLED_OAUTH_PROVIDERS.Apple ? 'Sign in with Apple' : 'Apple login coming soon'}
-          className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl border border-border bg-secondary/60 text-primaryText text-xs font-bold transition-all ${
-            ENABLED_OAUTH_PROVIDERS.Apple
-              ? 'hover:bg-secondary cursor-pointer disabled:opacity-50'
-              : 'cursor-not-allowed opacity-60 select-none'
-          }`}
-        >
-          {socialLoading === 'Apple' ? (
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary" />
-          ) : (
-            <svg className={`w-4 h-4 fill-current shrink-0 ${!ENABLED_OAUTH_PROVIDERS.Apple ? 'opacity-70' : ''}`} viewBox="0 0 170 170">
-              <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.34.13-9.14-1.92-14.4-6.15-3.63-2.94-7.58-7.7-11.85-14.28-6.02-9.28-10.9-19.68-14.65-31.2-3.75-11.53-5.63-22.37-5.63-32.53 0-15.12 3.84-27.42 11.53-36.9 7.68-9.48 17.27-14.31 28.77-14.5 4.58 0 9.77 1.2 15.57 3.59 5.8 2.39 9.87 3.63 12.2 3.73 2.12 0 6.37-1.3 12.74-3.9 6.37-2.6 11.75-3.8 16.14-3.59 12.06.67 21.6 5.17 28.63 13.5-10.82 6.53-16.08 15.66-15.79 27.39.29 9.17 3.86 16.8 10.72 22.89 6.86 6.09 15.02 9.53 24.48 10.33-2.22 6.72-5.1 13.62-8.65 20.7zM119.22 31.84c0-7.39 2.7-14.47 8.11-21.24 5.4-6.77 12.15-10.6 20.24-11.5 0.2 1.34 0.3 2.5 0.3 3.49 0 7.31-2.65 14.38-7.95 21.2-5.3 6.83-12.18 10.78-20.65 11.86-0.03-1.02-0.05-2.29-0.05-3.81z" />
-            </svg>
-          )}
-          <span className="hidden sm:inline">Apple</span>
-          {!ENABLED_OAUTH_PROVIDERS.Apple && (
             <span className="text-[9px] font-normal text-mutedText whitespace-nowrap">(Coming Soon)</span>
           )}
         </button>

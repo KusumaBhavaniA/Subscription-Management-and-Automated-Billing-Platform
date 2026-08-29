@@ -2,6 +2,8 @@ import { STORAGE_KEYS, getItem, setItem } from '../../utils/storage';
 import { subscriptionManagementApi } from './subscriptionManagementApi';
 import { BillingCycle } from '../../types/subscription';
 import { getPaymentTransactions } from '../../utils/paymentData';
+import { Invoice } from '../../types/invoice';
+import { INITIAL_INVOICES } from '../mockDataService';
 
 export interface PaymentOrderRequest {
   planId?: string;
@@ -21,13 +23,15 @@ export interface PaymentOrderRequest {
     city: string;
     zipCode: string;
   };
-  paymentMethod: 'upi' | 'credit-card' | 'debit-card' | 'net-banking' | 'wallet';
+  paymentMethod: 'upi' | 'credit-card' | 'debit-card' | 'net-banking' | 'wallet' | 'demo';
   paymentDetails?: any;
 }
 
 export interface PaymentTransactionResult {
   success: boolean;
+  isAuthError?: boolean;
   transactionId: string;
+  invoiceId?: string;
   paymentDate: string;
   amountPaid: number;
   planName: string;
@@ -35,6 +39,7 @@ export interface PaymentTransactionResult {
   customerName: string;
   customerEmail: string;
   failureReason?: string;
+  emailStatus?: string;
 }
 
 export interface CouponResult {
@@ -65,6 +70,20 @@ const DUMMY_COUPONS: Record<string, CouponResult> = {
   },
 };
 
+const getAuthToken = (): string | null => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.AUTH);
+    if (!raw) return null;
+    if (raw.startsWith('{')) {
+      const parsed = JSON.parse(raw);
+      return parsed.token || parsed.access_token || parsed.user?.token || null;
+    }
+    return raw;
+  } catch {
+    return null;
+  }
+};
+
 export const paymentApi = {
   /**
    * Get supported payment methods for frontend rendering
@@ -76,6 +95,7 @@ export const paymentApi = {
       { id: 'debit-card', label: 'Debit Card', description: 'All Indian & International Banks' },
       { id: 'net-banking', label: 'Net Banking', description: 'SBI, HDFC, ICICI, Axis & 50+ Banks' },
       { id: 'wallet', label: 'Wallets', description: 'PhonePe, Paytm, Amazon Pay & More' },
+      { id: 'demo', label: 'Demo Payment', description: 'Test the complete payment and billing workflow', isTestMode: true },
     ];
   },
 
@@ -128,15 +148,14 @@ export const paymentApi = {
   },
 
   /**
-   * Verify and process transaction (Simulates 2-3s processing done in UI)
+   * Verify and process transaction via backend API
    */
   verifyPayment: async (
     orderData: PaymentOrderRequest,
-    shouldFail: boolean = false
+    shouldFail: boolean = false,
+    shouldCancel: boolean = false
   ): Promise<PaymentTransactionResult> => {
-    // Simulate backend payment gateway API call
-    await new Promise((resolve) => setTimeout(resolve, 200));
-
+    const token = getAuthToken();
     const dateStr = new Date().toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
@@ -145,72 +164,147 @@ export const paymentApi = {
       minute: '2-digit',
     });
 
-    const txnId = `TXN-${new Date().toISOString().replace(/[-:T shadow.Z]/g, '').slice(0, 12)}`;
+    try {
+      const res = await fetch('http://localhost:8000/billing/process-payment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          plan_name: orderData.planName,
+          billing_cycle: orderData.billingCycle,
+          amount: orderData.amount,
+          payment_method: orderData.paymentMethod,
+          simulate_failure: shouldFail,
+          simulate_cancel: shouldCancel,
+          customer_name: orderData.customerName,
+          customer_email: orderData.customerEmail,
+        }),
+      });
 
-    if (shouldFail) {
+      if (res.status === 401) {
+        return {
+          success: false,
+          isAuthError: true,
+          transactionId: `TXN-${Date.now()}`,
+          paymentDate: dateStr,
+          amountPaid: orderData.amount,
+          planName: orderData.planName,
+          billingCycle: orderData.billingCycle,
+          customerName: orderData.customerName,
+          customerEmail: orderData.customerEmail,
+          failureReason: 'Your session has expired. Please log in again.',
+        };
+      }
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        return {
+          success: false,
+          transactionId: data.transactionId || `TXN-${Date.now()}`,
+          paymentDate: dateStr,
+          amountPaid: orderData.amount,
+          planName: orderData.planName,
+          billingCycle: orderData.billingCycle,
+          customerName: orderData.customerName,
+          customerEmail: orderData.customerEmail,
+          failureReason: data.failure_reason || data.message || 'Payment was not completed.',
+        };
+      }
+
+      // Sync local storage mirror
+      const invoiceNumber = data.invoiceId || `INV-2026-${Math.floor(100000 + Math.random() * 900000)}`;
+      const newInvoice: Invoice = {
+        id: `inv-${Date.now()}`,
+        invoiceNumber,
+        customerName: orderData.customerName,
+        customerEmail: orderData.customerEmail,
+        amount: orderData.amount,
+        status: 'Paid',
+        issueDate: new Date().toISOString().split('T')[0],
+        dueDate: new Date().toISOString().split('T')[0],
+        items: [
+          {
+            id: `item-${Date.now()}`,
+            description: `${orderData.planName} (${orderData.billingCycle}) Subscription`,
+            quantity: 1,
+            unitPrice: orderData.amount,
+            amount: orderData.amount,
+          },
+        ],
+      };
+      const invoices = getItem<Invoice[]>(STORAGE_KEYS.INVOICES, []);
+      setItem(STORAGE_KEYS.INVOICES, [newInvoice, ...invoices]);
+
+      const history = getItem<any[]>(STORAGE_KEYS.PAYMENTS || 'payments_history', []);
+      const newTxn = {
+        id: data.transactionId || `TXN-${Date.now()}`,
+        customerEmail: orderData.customerEmail,
+        customerName: orderData.customerName,
+        planName: orderData.planName,
+        billingCycle: orderData.billingCycle,
+        amount: orderData.amount,
+        amountPaid: orderData.amount,
+        status: 'Success',
+        paymentMethod: orderData.paymentMethod === 'demo' ? 'DEMO PAYMENT' : orderData.paymentMethod.toUpperCase(),
+        date: dateStr,
+        invoiceId: invoiceNumber,
+      };
+      setItem(STORAGE_KEYS.PAYMENTS || 'payments_history', [newTxn, ...history]);
+
       return {
-        success: false,
-        transactionId: txnId,
+        success: true,
+        transactionId: data.transactionId || newTxn.id,
+        invoiceId: invoiceNumber,
         paymentDate: dateStr,
         amountPaid: orderData.amount,
         planName: orderData.planName,
         billingCycle: orderData.billingCycle,
         customerName: orderData.customerName,
         customerEmail: orderData.customerEmail,
-        failureReason: 'Bank Timeout - Issuing bank server did not respond.',
+        emailStatus: `Invoice email sent to: ${orderData.customerEmail}`,
+      };
+    } catch (err: any) {
+      console.warn('Backend payment endpoint error:', err);
+      return {
+        success: false,
+        transactionId: `TXN-${Date.now()}`,
+        paymentDate: dateStr,
+        amountPaid: orderData.amount,
+        planName: orderData.planName,
+        billingCycle: orderData.billingCycle,
+        customerName: orderData.customerName,
+        customerEmail: orderData.customerEmail,
+        failureReason: err.message || 'Payment processing error.',
       };
     }
-
-    // On Success: Assign subscription in state
-    await subscriptionManagementApi.assignSubscription(
-      orderData.customerEmail,
-      orderData.customerName,
-      orderData.planName,
-      orderData.billingCycle
-    );
-
-    // Save transaction to local storage history
-    const history = getItem<any[]>(STORAGE_KEYS.PAYMENTS || 'payments_history', []);
-    const newTxn = {
-      id: txnId,
-      customerEmail: orderData.customerEmail,
-      customerName: orderData.customerName,
-      planName: orderData.planName,
-      billingCycle: orderData.billingCycle,
-      amount: orderData.amount,
-      status: 'Success',
-      paymentMethod: orderData.paymentMethod.toUpperCase(),
-      date: dateStr,
-    };
-    setItem(STORAGE_KEYS.PAYMENTS || 'payments_history', [newTxn, ...history]);
-
-    return {
-      success: true,
-      transactionId: txnId,
-      paymentDate: dateStr,
-      amountPaid: orderData.amount,
-      planName: orderData.planName,
-      billingCycle: orderData.billingCycle,
-      customerName: orderData.customerName,
-      customerEmail: orderData.customerEmail,
-    };
   },
 
   /**
-   * Get payment transactions for authenticated user.
-   * If role is Customer: ONLY returns payments matching customerEmail.
-   * If role is Admin: returns all payment transactions.
+   * Get payment transactions for authenticated user from backend DB
    */
   getPaymentTransactions: async (email: string, role?: string) => {
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    const token = getAuthToken();
+    try {
+      const res = await fetch('http://localhost:8000/payments/me', {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.payments)) {
+          return data.payments;
+        }
+      }
+    } catch (e) {
+      console.warn('GET /payments/me error:', e);
+    }
     const history = getPaymentTransactions();
     const cleanEmail = email.trim().toLowerCase();
-
-    if (role === 'Admin') {
-      return history;
-    }
-
-    return history.filter((t) => t.customerEmail?.toLowerCase() === cleanEmail);
+    return role === 'Admin' ? history : history.filter((t) => t.customerEmail?.toLowerCase() === cleanEmail);
   },
 
   /**
@@ -227,8 +321,8 @@ export const paymentApi = {
   }) => {
     const invoiceContent = `
 ===================================================================
-                   AUTOMATED BILLING PLATFORM
-                        OFFICIAL INVOICE
+             NEXFLOW — SUBSCRIPTION & BILLING PLATFORM
+                         OFFICIAL INVOICE
 ===================================================================
 Invoice Number: INV-${txn.transactionId}
 Transaction ID: ${txn.transactionId}
@@ -245,7 +339,7 @@ SUBSCRIPTION DETAILS:
 Plan Name:         ${txn.planName}
 Billing Cycle:     ${txn.billingCycle}
 Amount Paid:       ₹${txn.amountPaid.toLocaleString('en-IN')}
-GST (18% Included): ₹${Math.round(txn.amountPaid - txn.amountPaid / 1.18).toLocaleString('en-IN')}
+GST (10% Included): ₹${Math.round(txn.amountPaid - txn.amountPaid / 1.10).toLocaleString('en-IN')}
 
 ===================================================================
           Thank you for subscribing to our platform!

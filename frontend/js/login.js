@@ -74,7 +74,7 @@
             user: {
                 name: payload.email.toLowerCase() === 'admin@billingplatform.com' ? 'Admin User' : payload.email,
                 email: payload.email,
-                company: payload.company || 'Billing Platform Inc.',
+                company: payload.company || 'NexFlow Inc.',
                 role: 'Administrator',
                 avatar: initialsFromEmail(payload.email)
             },

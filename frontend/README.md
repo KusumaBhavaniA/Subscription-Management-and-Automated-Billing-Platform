@@ -1,6 +1,6 @@
-# AetherBilling - Subscription Management Frontend
+# NexFlow - Subscription Management Frontend
 
-A premium, responsive SaaS frontend interface built for a **Subscription Management & Automated Billing Platform**. The interface is designed in the aesthetic styles of modern platforms like Vercel, Linear, Stripe, and Clerk, featuring custom glassmorphism, responsive CSS grid layouts, real-time Chart.js integrations, and seamless dark-mode customization.
+A premium, responsive SaaS frontend interface built for **NexFlow — Subscription & Billing Platform**. The interface is designed in the aesthetic styles of modern platforms like Vercel, Linear, Stripe, and Clerk, featuring custom glassmorphism, responsive CSS grid layouts, real-time Chart.js integrations, and seamless dark-mode customization.
 
 ## 🚀 Quick Start (Running Locally)
 

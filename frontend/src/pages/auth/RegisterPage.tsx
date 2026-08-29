@@ -115,7 +115,7 @@ export const RegisterPage: React.FC = () => {
           </Link>
           <div className="flex items-center gap-2">
             <BPLogo size="sm" />
-            <span className="font-bold text-sm text-heading">Billing Platform</span>
+            <span className="font-bold text-sm text-heading">NexFlow</span>
           </div>
         </div>
 
@@ -123,7 +123,7 @@ export const RegisterPage: React.FC = () => {
           <div className="mb-6 space-y-1">
             <h2 className="text-xl font-extrabold text-heading">Create Customer Account</h2>
             <p className="text-xs text-secondaryText font-medium">
-              Smart Subscription & Billing Management System
+              Subscription & Billing Platform
             </p>
           </div>
 

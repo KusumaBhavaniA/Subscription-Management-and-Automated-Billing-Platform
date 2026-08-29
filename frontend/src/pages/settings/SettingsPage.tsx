@@ -21,6 +21,7 @@ import { Button } from '../../components/common/Button';
 import { Select } from '../../components/common/Select';
 import { Switch } from '../../components/common/Switch';
 import { Toast } from '../../components/common/Toast';
+import { PageHeader } from '../../components/common/PageHeader';
 import { useSettings } from '../../hooks/useSettings';
 import { applyAppearance } from '../../contexts/SettingsContext';
 import { useTheme, Theme } from '../../contexts/ThemeContext';
@@ -192,19 +193,13 @@ export const SettingsPage: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-20">
+    <div className="space-y-6 max-w-7xl mx-auto pb-16">
       {/* Page Header */}
-      <div className="flex items-center justify-between pb-2 border-b border-border">
-        <div>
-          <h1 className="text-2xl font-extrabold text-heading flex items-center gap-2">
-            <SettingsIcon className="w-6 h-6 text-primary" />
-            Settings
-          </h1>
-          <p className="text-xs text-secondaryText mt-1">
-            Configure application appearance, notifications, security, and workspace preferences.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Settings"
+        subtitle="Configure application appearance, notifications, security, and workspace preferences."
+        icon={SettingsIcon}
+      />
 
       {/* Navigation Sections Bar */}
       <div className="flex items-center gap-1 overflow-x-auto pb-1 border-b border-border no-scrollbar">
@@ -216,8 +211,8 @@ export const SettingsPage: React.FC = () => {
               onClick={() => setActiveTab(t.id)}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                 isActive
-                  ? 'bg-primary text-white shadow-md'
-                  : 'text-secondaryText hover:text-primaryText hover:bg-secondary'
+                  ? 'bg-primary text-white shadow-xs'
+                  : 'text-secondaryText hover:text-heading hover:bg-secondary'
               }`}
             >
               {t.icon}

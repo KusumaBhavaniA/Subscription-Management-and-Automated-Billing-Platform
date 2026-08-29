@@ -13,7 +13,7 @@ export interface Customer {
   accountStatus?: AccountStatus;
   isVerified?: boolean;
   subscriptionPlan: string;
-  subscriptionStatus?: 'Active' | 'Inactive' | 'Cancelled' | 'Expired' | 'Past Due' | 'Trialing' | 'Paused';
+  subscriptionStatus?: 'Active' | 'Inactive' | 'Cancelled' | 'canceled' | 'Expired' | 'Past Due' | 'Trialing' | 'Paused';
   mrr: number;
   totalSpent: number;
   joinedDate: string;

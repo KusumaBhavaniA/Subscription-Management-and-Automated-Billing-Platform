@@ -3,7 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.auth.routes import router as auth_router
 from app.auth.oauth import router as oauth_router
-from app.billing.routes import router as billing_router
 from app.billing import models as billing_models  # noqa: F401 — registers billing tables with Base
 
 from app.database import engine, Base
@@ -35,6 +34,44 @@ def ensure_db_schema():
                     conn.execute(text("ALTER TABLE users ADD COLUMN suspended_by VARCHAR"))
                 if "suspension_reason" not in columns:
                     conn.execute(text("ALTER TABLE users ADD COLUMN suspension_reason TEXT"))
+                if "state" not in columns:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN state VARCHAR"))
+                if "city" not in columns:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN city VARCHAR"))
+                if "zip_code" not in columns:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN zip_code VARCHAR"))
+                if "address" not in columns:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN address VARCHAR"))
+
+        if "plans" in inspector.get_table_names():
+            plan_columns = [c["name"] for c in inspector.get_columns("plans")]
+            with engine.begin() as conn:
+                if "description" not in plan_columns:
+                    conn.execute(text("ALTER TABLE plans ADD COLUMN description TEXT"))
+                if "quarterly_price" not in plan_columns:
+                    conn.execute(text("ALTER TABLE plans ADD COLUMN quarterly_price NUMERIC(12, 2)"))
+                if "yearly_price" not in plan_columns:
+                    conn.execute(text("ALTER TABLE plans ADD COLUMN yearly_price NUMERIC(12, 2)"))
+                if "features" not in plan_columns:
+                    conn.execute(text("ALTER TABLE plans ADD COLUMN features TEXT"))
+                if "is_popular" not in plan_columns:
+                    conn.execute(text("ALTER TABLE plans ADD COLUMN is_popular BOOLEAN DEFAULT 0"))
+
+        if "subscriptions" in inspector.get_table_names():
+            sub_columns = [c["name"] for c in inspector.get_columns("subscriptions")]
+            with engine.begin() as conn:
+                if "next_plan_id" not in sub_columns:
+                    conn.execute(text("ALTER TABLE subscriptions ADD COLUMN next_plan_id INTEGER"))
+                if "billing_cycle" not in sub_columns:
+                    conn.execute(text("ALTER TABLE subscriptions ADD COLUMN billing_cycle VARCHAR DEFAULT 'Monthly'"))
+                if "price" not in sub_columns:
+                    conn.execute(text("ALTER TABLE subscriptions ADD COLUMN price NUMERIC(12, 2) DEFAULT 0"))
+
+        if "invoices" in inspector.get_table_names():
+            inv_columns = [c["name"] for c in inspector.get_columns("invoices")]
+            with engine.begin() as conn:
+                if "payment_reference" not in inv_columns:
+                    conn.execute(text("ALTER TABLE invoices ADD COLUMN payment_reference VARCHAR"))
     except Exception as e:
         print("ensure_db_schema error:", e)
 
@@ -50,6 +87,8 @@ app = FastAPI(
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
@@ -57,6 +96,7 @@ origins = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -71,51 +111,23 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+from app.routers.billing_routes import router as billing_router
+
+app.include_router(billing_router)
 app.include_router(auth_router)
 app.include_router(oauth_router)
-app.include_router(billing_router)
 app.include_router(payment_router)
 
 
 @app.on_event("startup")
-def seed_demo_plans() -> None:
-    """
-    Seed a few demo plans if none exist yet, so the billing demo works
-    out of the box without requiring a separate admin setup step.
-
-    Wrapped defensively: if migrations haven't been run yet (billing
-    tables don't exist), we log a warning instead of crashing the whole
-    app on startup — auth and everything else should still come up.
-    """
-    from decimal import Decimal
-
-    from app.billing.models import Plan
-    from app.database import SessionLocal
-
-    db = SessionLocal()
-    try:
-        if db.query(Plan).count() == 0:
-            db.add_all(
-                [
-                    Plan(code="starter", name="Starter", monthly_price=Decimal("10.00")),
-                    Plan(code="growth", name="Growth", monthly_price=Decimal("20.00")),
-                    Plan(code="pro", name="Pro", monthly_price=Decimal("30.00")),
-                ]
-            )
-            db.commit()
-    except Exception as exc:
-        logger.warning(
-            "Skipped demo plan seeding (likely need to run `alembic upgrade head` first): %s",
-            exc,
-        )
-        db.rollback()
-    finally:
-        db.close()
-
-
-@app.on_event("startup")
-def startup_smtp_diagnostics():
+def startup_events():
     from app.config import settings
+    from seed_admin import seed_admin
+    try:
+        seed_admin()
+    except Exception as exc:
+        logger.warning("seed_admin on startup notice: %s", exc)
+
     logger.info("=== [SMTP CONFIGURATION DIAGNOSTICS] ===")
     logger.info("SMTP_HOST configured    : %s (%s)", "YES" if settings.SMTP_HOST else "NO", settings.SMTP_HOST)
     logger.info("SMTP_PORT configured    : %s (%s)", "YES" if settings.SMTP_PORT else "NO", settings.SMTP_PORT)

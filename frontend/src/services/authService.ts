@@ -441,9 +441,26 @@ export const authService = {
       sessionUser = safeUser;
     }
 
+    let sessionToken = `prod-oauth-jwt-${provider.toLowerCase()}-${Date.now()}`;
+    try {
+      const apiRes = await authApi.socialLogin({
+        email: cleanEmail,
+        fullName: targetProfile.fullName,
+        provider,
+      });
+      if (apiRes.success && apiRes.data?.token) {
+        sessionToken = apiRes.data.token;
+        if (apiRes.data.user) {
+          sessionUser = { ...sessionUser, ...apiRes.data.user };
+        }
+      }
+    } catch (e) {
+      console.warn('Backend social login fallback:', e);
+    }
+
     const session: AuthSession = {
       user: sessionUser,
-      token: `prod-oauth-jwt-${provider.toLowerCase()}-${Date.now()}`,
+      token: sessionToken,
     };
 
     setItem(STORAGE_KEYS.AUTH, session);
@@ -528,5 +545,15 @@ export const authService = {
       }
     }
   },
+
+  updateProfile: async (updatedData: Partial<User>): Promise<User> => {
+    const res = await authApi.updateProfile(updatedData);
+    if (!res.success) {
+      throw new Error(res.error || res.message || 'Failed to update profile.');
+    }
+    const updatedUser = ((res as any).user || res.data || updatedData) as User;
+    return updatedUser;
+  },
 };
+
 

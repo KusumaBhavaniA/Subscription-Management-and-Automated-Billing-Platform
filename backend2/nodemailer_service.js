@@ -1,5 +1,5 @@
 /**
- * Nodemailer Email Service for Billing Platform
+ * Nodemailer Email Service for NexFlow
  * Handles real SMTP email sending configured via environment variables.
  */
 
@@ -11,7 +11,7 @@ const createTransporter = () => {
   const port = parseInt(process.env.SMTP_PORT || '587', 10);
   const user = process.env.SMTP_USER || '';
   const pass = process.env.SMTP_PASSWORD || '';
-  const fromName = process.env.EMAIL_FROM_NAME || 'Billing Platform';
+  const fromName = process.env.EMAIL_FROM_NAME || 'NexFlow';
   const fromEmail = process.env.EMAIL_FROM || user;
 
   if (!user || !pass) {
@@ -40,13 +40,13 @@ const sendOTPEmailNodemailer = async (toEmail, firstName, otp) => {
   const mailOptions = {
     from: fromAddress,
     to: toEmail,
-    subject: 'Your Billing Platform verification code',
-    text: `Hi ${firstName},\n\nYour email verification code is: ${otp}\n\nThis code expires in 10 minutes.\n\n🔒 Security Notice: Never share this code with anyone.\n\n— Billing Platform Team`,
+    subject: 'Your NexFlow verification code',
+    text: `Hi ${firstName},\n\nYour email verification code is: ${otp}\n\nThis code expires in 10 minutes.\n\n🔒 Security Notice: Never share this code with anyone.\n\n— NexFlow Team`,
     html: `
       <div style="font-family: Arial, sans-serif; padding: 24px; background: #f8fafc;">
         <div style="max-width: 500px; margin: 0 auto; background: white; border-radius: 16px; padding: 0; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.05);">
           <div style="background: linear-gradient(135deg, #2563eb, #1d4ed8); padding: 28px; text-align: center;">
-            <div style="margin-bottom: 8px;"><span style="display:inline-block; padding: 6px 16px; background: rgba(255,255,255,0.2); border-radius: 8px; color: white; font-weight: bold; font-size: 18px;">[LOGO] BILLING PLATFORM</span></div>
+            <div style="margin-bottom: 8px;"><span style="display:inline-block; padding: 6px 16px; background: rgba(255,255,255,0.2); border-radius: 8px; color: white; font-weight: bold; font-size: 18px;">[LOGO] NEXFLOW</span></div>
             <h2 style="color: white; margin: 0; font-size: 20px;">Verification Code</h2>
           </div>
           <div style="padding: 28px;">
@@ -61,7 +61,7 @@ const sendOTPEmailNodemailer = async (toEmail, firstName, otp) => {
             </div>
           </div>
           <div style="background: #f8fafc; padding: 16px; text-align: center; border-top: 1px solid #e2e8f0;">
-            <p style="font-size: 11px; color: #94a3b8; margin: 0;">© 2026 Billing Platform. All rights reserved.</p>
+            <p style="font-size: 11px; color: #94a3b8; margin: 0;">© 2026 NexFlow. All rights reserved.</p>
           </div>
         </div>
       </div>
@@ -80,13 +80,13 @@ const sendWelcomeEmailNodemailer = async (toEmail, firstName) => {
   const mailOptions = {
     from: fromAddress,
     to: toEmail,
-    subject: 'Welcome to Billing Platform!',
-    text: `Hi ${firstName},\n\nYour account has been verified successfully. Welcome to Billing Platform!\n\nLog in at: http://localhost:5173/login\n\n— Billing Platform Team`,
+    subject: 'Welcome to NexFlow!',
+    text: `Hi ${firstName},\n\nYour account has been verified successfully. Welcome to NexFlow!\n\nLog in at: http://localhost:5173/login\n\n— NexFlow Team`,
     html: `
       <div style="font-family: Arial, sans-serif; padding: 24px; background: #f8fafc;">
         <div style="max-width: 500px; margin: 0 auto; background: white; border-radius: 16px; padding: 0; border: 1px solid #e2e8f0; overflow: hidden;">
           <div style="background: linear-gradient(135deg, #2563eb, #1d4ed8); padding: 28px; text-align: center;">
-            <div style="margin-bottom: 8px;"><span style="display:inline-block; padding: 6px 16px; background: rgba(255,255,255,0.2); border-radius: 8px; color: white; font-weight: bold; font-size: 18px;">[LOGO] BILLING PLATFORM</span></div>
+            <div style="margin-bottom: 8px;"><span style="display:inline-block; padding: 6px 16px; background: rgba(255,255,255,0.2); border-radius: 8px; color: white; font-weight: bold; font-size: 18px;">[LOGO] NEXFLOW</span></div>
             <h2 style="color: white; margin: 0; font-size: 20px;">Account Verified</h2>
           </div>
           <div style="padding: 28px;">
@@ -97,7 +97,7 @@ const sendWelcomeEmailNodemailer = async (toEmail, firstName) => {
             </div>
           </div>
           <div style="background: #f8fafc; padding: 16px; text-align: center; border-top: 1px solid #e2e8f0;">
-            <p style="font-size: 11px; color: #94a3b8; margin: 0;">© 2026 Billing Platform. All rights reserved.</p>
+            <p style="font-size: 11px; color: #94a3b8; margin: 0;">© 2026 NexFlow. All rights reserved.</p>
           </div>
         </div>
       </div>
@@ -119,13 +119,13 @@ const sendProfileIncompleteEmailNodemailer = async (toEmail, fullName, missingFi
   const mailOptions = {
     from: fromAddress,
     to: toEmail,
-    subject: 'Complete Your Billing Platform Profile',
-    text: `Hi ${fullName},\n\nYour profile information is incomplete. Please update your details.\n\nMissing details:\n${missingListText}\n\nUpdate profile: http://localhost:5173/profile\n\n— Billing Platform Team`,
+    subject: 'Complete Your NexFlow Profile',
+    text: `Hi ${fullName},\n\nYour profile information is incomplete. Please update your details.\n\nMissing details:\n${missingListText}\n\nUpdate profile: http://localhost:5173/profile\n\n— NexFlow Team`,
     html: `
       <div style="font-family: Arial, sans-serif; padding: 24px; background: #f8fafc;">
         <div style="max-width: 500px; margin: 0 auto; background: white; border-radius: 16px; padding: 0; border: 1px solid #e2e8f0; overflow: hidden;">
           <div style="background: linear-gradient(135deg, #2563eb, #1d4ed8); padding: 28px; text-align: center;">
-            <div style="margin-bottom: 8px;"><span style="display:inline-block; padding: 6px 16px; background: rgba(255,255,255,0.2); border-radius: 8px; color: white; font-weight: bold; font-size: 18px;">[LOGO] BILLING PLATFORM</span></div>
+            <div style="margin-bottom: 8px;"><span style="display:inline-block; padding: 6px 16px; background: rgba(255,255,255,0.2); border-radius: 8px; color: white; font-weight: bold; font-size: 18px;">[LOGO] NEXFLOW</span></div>
             <h2 style="color: white; margin: 0; font-size: 20px;">Complete Your Profile</h2>
           </div>
           <div style="padding: 28px;">
@@ -142,7 +142,7 @@ const sendProfileIncompleteEmailNodemailer = async (toEmail, fullName, missingFi
             </div>
           </div>
           <div style="background: #f8fafc; padding: 16px; text-align: center; border-top: 1px solid #e2e8f0;">
-            <p style="font-size: 11px; color: #94a3b8; margin: 0;">© 2026 Billing Platform. All rights reserved.</p>
+            <p style="font-size: 11px; color: #94a3b8; margin: 0;">© 2026 NexFlow. All rights reserved.</p>
           </div>
         </div>
       </div>
@@ -157,3 +157,4 @@ module.exports = {
   sendWelcomeEmailNodemailer,
   sendProfileIncompleteEmailNodemailer,
 };
+

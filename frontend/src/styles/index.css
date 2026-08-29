@@ -9,18 +9,18 @@
     --background: #F8FAFC;
     --surface: #FFFFFF;
     --card: #FFFFFF;
-    --card-hover: #F1F5F9;
+    --card-hover: #F8FAFC;
     --input-bg: #FFFFFF;
     --dropdown-bg: #FFFFFF;
 
-    --text-heading: #020617;
+    --text-heading: #0F172A;
     --text-primary: #0F172A;
-    --text-secondary: #475569;
-    --text-muted: #64748B;
+    --text-secondary: #64748B;
+    --text-muted: #94A3B8;
     --text-inverse: #FFFFFF;
 
-    --border: #CBD5E1;
-    --border-hover: #94A3B8;
+    --border: #E2E8F0;
+    --border-hover: #CBD5E1;
 
     --primary: #2563EB;
     --primary-hover: #1D4ED8;
@@ -28,26 +28,26 @@
 
     --secondary: #F1F5F9;
     --secondary-hover: #E2E8F0;
-    --secondary-text: #334155;
+    --secondary-text: #475569;
 
-    --success: #059669;
+    --success: #10B981;
     --success-bg: #ECFDF5;
     --success-border: #A7F3D0;
     --success-text: #047857;
 
-    --warning: #D97706;
+    --warning: #F59E0B;
     --warning-bg: #FFFBEB;
     --warning-border: #FDE68A;
     --warning-text: #B45309;
 
-    --danger: #DC2626;
+    --danger: #EF4444;
     --danger-bg: #FEF2F2;
     --danger-border: #FCA5A5;
     --danger-text: #B91C1C;
 
     --table-header-bg: #F8FAFC;
-    --table-row-hover: #F1F5F9;
-    --shadow-color: rgba(15, 23, 42, 0.08);
+    --table-row-hover: #F8FAFC;
+    --shadow-color: rgba(15, 23, 42, 0.05);
 
     --scrollbar-track: #F8FAFC;
     --scrollbar-thumb: #CBD5E1;
@@ -56,21 +56,21 @@
 
   [data-theme="dark"],
   .dark {
-    --background: #0B1120;
-    --surface: #111827;
-    --card: #111827;
-    --card-hover: #1F2937;
-    --input-bg: #0F172A;
-    --dropdown-bg: #111827;
+    --background: #090D16;
+    --surface: #0F172A;
+    --card: #0F172A;
+    --card-hover: #1E293B;
+    --input-bg: #090D16;
+    --dropdown-bg: #0F172A;
 
-    --text-heading: #FFFFFF;
-    --text-primary: #F8FAFC;
+    --text-heading: #F8FAFC;
+    --text-primary: #F1F5F9;
     --text-secondary: #94A3B8;
     --text-muted: #64748B;
-    --text-inverse: #0F172A;
+    --text-inverse: #090D16;
 
-    --border: #334155;
-    --border-hover: #475569;
+    --border: #1E293B;
+    --border-hover: #334155;
 
     --primary: #2563EB;
     --primary-hover: #1D4ED8;
@@ -81,25 +81,25 @@
     --secondary-text: #CBD5E1;
 
     --success: #10B981;
-    --success-bg: rgba(16, 185, 129, 0.15);
-    --success-border: rgba(16, 185, 129, 0.3);
+    --success-bg: rgba(16, 185, 129, 0.12);
+    --success-border: rgba(16, 185, 129, 0.25);
     --success-text: #34D399;
 
     --warning: #F59E0B;
-    --warning-bg: rgba(245, 158, 11, 0.15);
-    --warning-border: rgba(245, 158, 11, 0.3);
+    --warning-bg: rgba(245, 158, 11, 0.12);
+    --warning-border: rgba(245, 158, 11, 0.25);
     --warning-text: #FBBF24;
 
     --danger: #EF4444;
-    --danger-bg: rgba(239, 68, 68, 0.15);
-    --danger-border: rgba(239, 68, 68, 0.3);
+    --danger-bg: rgba(239, 68, 68, 0.12);
+    --danger-border: rgba(239, 68, 68, 0.25);
     --danger-text: #F87171;
 
-    --table-header-bg: #0F172A;
-    --table-row-hover: rgba(31, 41, 55, 0.6);
+    --table-header-bg: #0B1120;
+    --table-row-hover: rgba(30, 41, 59, 0.5);
     --shadow-color: rgba(0, 0, 0, 0.5);
 
-    --scrollbar-track: #0B1120;
+    --scrollbar-track: #090D16;
     --scrollbar-thumb: #334155;
     --scrollbar-thumb-hover: #475569;
   }

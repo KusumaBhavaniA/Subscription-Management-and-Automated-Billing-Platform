@@ -67,7 +67,7 @@ def _send(to_email: str, subject: str, html_body: str, text_body: str) -> None:
 
     clean_to = to_email.strip()
     from_email = (settings.EMAIL_FROM or smtp_user).strip()
-    from_name = (settings.EMAIL_FROM_NAME or "Billing Platform").strip()
+    from_name = (settings.EMAIL_FROM_NAME or "NexFlow").strip()
 
     domain = from_email.split("@")[-1] if "@" in from_email else "gmail.com"
 
@@ -79,7 +79,7 @@ def _send(to_email: str, subject: str, html_body: str, text_body: str) -> None:
     msg["Date"] = formatdate(localtime=True)
     msg["Message-ID"] = make_msgid(domain=domain)
     msg["Auto-Submitted"] = "auto-generated"
-    msg["X-Mailer"] = "BillingPlatform-FastAPI/1.0"
+    msg["X-Mailer"] = "NexFlow-FastAPI/1.0"
 
     msg.attach(MIMEText(text_body, "plain", "utf-8"))
     msg.attach(MIMEText(html_body, "html", "utf-8"))
@@ -130,7 +130,7 @@ def _send(to_email: str, subject: str, html_body: str, text_body: str) -> None:
 # ---------------------------------------------------------------------------
 
 def send_otp_email(to_email: str, first_name: str, otp: str) -> None:
-    subject = "Your Billing Platform verification code"
+    subject = "Your NexFlow verification code"
 
     text_body = (
         f"Hi {first_name},\n\n"
@@ -138,7 +138,7 @@ def send_otp_email(to_email: str, first_name: str, otp: str) -> None:
         f"This code expires in {settings.OTP_EXPIRE_MINUTES} minutes.\n\n"
         "Security Notice: Never share this verification code with anyone.\n\n"
         "If you did not request this code, please ignore this email or contact support.\n\n"
-        "— Billing Platform Team"
+        "— NexFlow Team"
     )
 
     html_body = f"""
@@ -156,10 +156,10 @@ def send_otp_email(to_email: str, first_name: str, otp: str) -> None:
           <tr>
             <td style="background:linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);padding:32px;text-align:center;">
               <div style="margin-bottom:10px;">
-                <span style="display:inline-block;padding:6px 18px;background:rgba(255,255,255,0.2);border-radius:8px;color:#ffffff;font-weight:900;font-size:16px;letter-spacing:1px;">[LOGO] BILLING PLATFORM</span>
+                <span style="display:inline-block;padding:6px 18px;background:rgba(255,255,255,0.2);border-radius:8px;color:#ffffff;font-weight:900;font-size:16px;letter-spacing:1px;">[LOGO] NEXFLOW</span>
               </div>
               <span style="font-size:22px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;display:block;">
-                Billing Platform
+                NexFlow
               </span>
               <span style="font-size:12px;color:#93c5fd;font-weight:500;margin-top:4px;display:block;">
                 Identity Verification & Account Security
@@ -173,7 +173,7 @@ def send_otp_email(to_email: str, first_name: str, otp: str) -> None:
                 Hi {first_name},
               </p>
               <p style="margin:0 0 24px;font-size:14px;color:#475569;line-height:1.6;">
-                Thank you for creating an account with Billing Platform. Please use the verification code below to complete your registration.
+                Thank you for creating an account with NexFlow. Please use the verification code below to complete your registration.
               </p>
               
               <!-- Verification Code Box -->
@@ -192,7 +192,7 @@ def send_otp_email(to_email: str, first_name: str, otp: str) -> None:
               <!-- Security Warning -->
               <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px 16px;margin-bottom:24px;">
                 <p style="margin:0;font-size:12px;color:#991b1b;line-height:1.5;font-weight:500;">
-                  🔒 <strong>Security Warning:</strong> Never share this verification code with anyone. Billing Platform staff will never ask for your code.
+                  🔒 <strong>Security Warning:</strong> Never share this verification code with anyone. NexFlow staff will never ask for your code.
                 </p>
               </div>
 
@@ -205,7 +205,7 @@ def send_otp_email(to_email: str, first_name: str, otp: str) -> None:
           <tr>
             <td style="background:#f8fafc;padding:20px 32px;text-align:center;border-top:1px solid #e2e8f0;">
               <p style="margin:0;font-size:12px;color:#94a3b8;font-weight:500;">
-                © 2026 Billing Platform. All rights reserved.
+                © 2026 NexFlow. All rights reserved.
               </p>
             </td>
           </tr>
@@ -225,16 +225,16 @@ def send_otp_email(to_email: str, first_name: str, otp: str) -> None:
 
 def send_profile_incomplete_email(to_email: str, user_name: str, missing_fields: list[str]) -> None:
     logger.info("=== [BACKGROUND TASK STARTED] Sending Profile Incomplete email to %s ===", to_email)
-    subject = "Complete Your Billing Platform Profile"
+    subject = "Complete Your NexFlow Profile"
     profile_url = f"{settings.FRONTEND_URL}/customer/profile"
 
     fields_text = "\n".join([f"- {field}" for field in missing_fields]) if missing_fields else "- Contact / Billing Information"
     text_body = (
         f"Hi {user_name},\n\n"
-        "Your Billing Platform profile is incomplete. Please complete your profile details.\n\n"
+        "Your NexFlow profile is incomplete. Please complete your profile details.\n\n"
         f"Missing information:\n{fields_text}\n\n"
         f"Update your profile here:\n{profile_url}\n\n"
-        "— Billing Platform Team"
+        "— NexFlow Team"
     )
 
     fields_html = "".join(
@@ -259,7 +259,7 @@ def send_profile_incomplete_email(to_email: str, user_name: str, missing_fields:
           <tr>
             <td style="background:linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);padding:32px;text-align:center;">
               <span style="font-size:24px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;display:block;">
-                Billing Platform
+                NexFlow
               </span>
               <span style="font-size:12px;color:#93c5fd;font-weight:500;margin-top:4px;display:block;">
                 Account Profile & Security Notice
@@ -306,7 +306,7 @@ def send_profile_incomplete_email(to_email: str, user_name: str, missing_fields:
           <tr>
             <td style="background:#f8fafc;padding:20px 32px;text-align:center;border-top:1px solid #e2e8f0;">
               <p style="margin:0;font-size:12px;color:#94a3b8;font-weight:500;">
-                © 2026 Billing Platform. All rights reserved.
+                © 2026 NexFlow. All rights reserved.
               </p>
             </td>
           </tr>
@@ -325,13 +325,13 @@ def send_profile_incomplete_email(to_email: str, user_name: str, missing_fields:
 # ---------------------------------------------------------------------------
 
 def send_welcome_email(to_email: str, first_name: str) -> None:
-    subject = "Welcome to Billing Platform!"
+    subject = "Welcome to NexFlow!"
 
     text_body = (
         f"Hi {first_name},\n\n"
-        "Your account has been verified successfully. Welcome to Billing Platform!\n\n"
+        "Your account has been verified successfully. Welcome to NexFlow!\n\n"
         f"You can log in at: {settings.FRONTEND_URL}/login\n\n"
-        "— Billing Platform Team"
+        "— NexFlow Team"
     )
 
     html_body = f"""
@@ -347,7 +347,7 @@ def send_welcome_email(to_email: str, first_name: str) -> None:
                       box-shadow:0 10px 30px rgba(15,23,42,0.08);border:1px solid #e2e8f0;">
           <tr>
             <td style="background:linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);padding:32px;text-align:center;">
-              <span style="font-size:24px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">Billing Platform</span>
+              <span style="font-size:24px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">NexFlow</span>
             </td>
           </tr>
           <tr>
@@ -371,7 +371,7 @@ def send_welcome_email(to_email: str, first_name: str) -> None:
           <tr>
             <td style="background:#f8fafc;padding:20px 32px;text-align:center;border-top:1px solid #e2e8f0;">
               <p style="margin:0;font-size:12px;color:#94a3b8;">
-                © 2026 Billing Platform. All rights reserved.
+                © 2026 NexFlow. All rights reserved.
               </p>
             </td>
           </tr>
@@ -392,15 +392,15 @@ def send_welcome_email(to_email: str, first_name: str) -> None:
 def send_test_email(to_email: str) -> None:
     logger.info("TEST EMAIL FUNCTION CALLED")
     logger.info("Sending test email to: %s", to_email)
-    subject = "Billing Platform Test Email"
+    subject = "NexFlow Test Email"
     text_body = (
         "Hello,\n\n"
-        "This is a test email from Billing Platform SMTP."
+        "This is a test email from NexFlow SMTP."
     )
     html_body = (
         "<!DOCTYPE html><html><body>"
         "<p>Hello,</p>"
-        "<p>This is a test email from Billing Platform SMTP.</p>"
+        "<p>This is a test email from NexFlow SMTP.</p>"
         "</body></html>"
     )
     _send(to_email, subject, html_body, text_body)
@@ -415,7 +415,7 @@ def send_password_reset_email(to_email: str, first_name: str, reset_token: str) 
     logger.info("Sending password reset email to: %s", to_email)
 
     reset_url = f"{settings.FRONTEND_URL}/reset-password?token={reset_token}"
-    subject = "Reset your Billing Platform password"
+    subject = "Reset your NexFlow password"
 
     text_body = (
         f"Hi {first_name},\n\n"
@@ -423,7 +423,7 @@ def send_password_reset_email(to_email: str, first_name: str, reset_token: str) 
         f"Click this link to reset it (expires in {settings.RESET_TOKEN_EXPIRE_MINUTES} minutes):\n"
         f"{reset_url}\n\n"
         "If you didn't request a password reset, ignore this email.\n\n"
-        "— Billing Platform Team"
+        "— NexFlow Team"
     )
 
     html_body = f"""
@@ -439,7 +439,7 @@ def send_password_reset_email(to_email: str, first_name: str, reset_token: str) 
                       box-shadow:0 10px 30px rgba(15,23,42,0.08);border:1px solid #e2e8f0;">
           <tr>
             <td style="background:linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);padding:32px;text-align:center;">
-              <span style="font-size:24px;font-weight:800;color:#ffffff;">Billing Platform</span>
+              <span style="font-size:24px;font-weight:800;color:#ffffff;">NexFlow</span>
             </td>
           </tr>
           <tr>
@@ -470,7 +470,7 @@ def send_password_reset_email(to_email: str, first_name: str, reset_token: str) 
             <td style="background:#f8fafc;padding:20px 32px;text-align:center;border-top:1px solid #e2e8f0;">
               <p style="margin:0;font-size:12px;color:#94a3b8;">
                 If you didn't request this, you can safely ignore this email.
-                © 2026 Billing Platform.
+                © 2026 NexFlow.
               </p>
             </td>
           </tr>
@@ -490,17 +490,17 @@ def send_password_reset_email(to_email: str, first_name: str, reset_token: str) 
 
 def send_suspension_email(to_email: str, customer_name: str, reason: str = "") -> None:
     logger.info("=== [BACKGROUND TASK] Sending Account Suspension email to %s ===", to_email)
-    subject = "Your Billing Platform Account Has Been Suspended"
+    subject = "Your NexFlow Account Has Been Suspended"
     support_url = f"{settings.FRONTEND_URL}/customer/support"
 
     reason_text = f"\nReason: {reason}\n" if reason else ""
     text_body = (
         f"Hello {customer_name},\n\n"
-        "Your Billing Platform account has been suspended by the administrator.\n"
+        "Your NexFlow account has been suspended by the administrator.\n"
         f"{reason_text}\n"
         "If you believe this was a mistake or want to restore your account, please contact support.\n\n"
         f"Contact Support: {support_url}\n\n"
-        "— Billing Platform Team"
+        "— NexFlow Team"
     )
 
     reason_html = f'<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px 16px;margin-bottom:24px;"><p style="margin:0;font-size:13px;color:#991b1b;"><strong>Reason:</strong> {reason}</p></div>' if reason else ""
@@ -518,7 +518,7 @@ def send_suspension_email(to_email: str, customer_name: str, reason: str = "") -
                       box-shadow:0 10px 30px rgba(15,23,42,0.08);border:1px solid #e2e8f0;">
           <tr>
             <td style="background:linear-gradient(135deg, #ef4444 0%, #dc2626 100%);padding:32px;text-align:center;">
-              <span style="font-size:24px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;display:block;">Billing Platform</span>
+              <span style="font-size:24px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;display:block;">NexFlow</span>
               <span style="font-size:12px;color:#feccae;font-weight:500;margin-top:4px;display:block;">Account Status Update</span>
             </td>
           </tr>
@@ -528,7 +528,7 @@ def send_suspension_email(to_email: str, customer_name: str, reason: str = "") -
                 Hello {customer_name},
               </p>
               <p style="margin:0 0 20px;font-size:14px;color:#475569;line-height:1.6;">
-                Your Billing Platform account has been suspended by the administrator.
+                Your NexFlow account has been suspended by the administrator.
               </p>
               {reason_html}
               <p style="margin:0 0 24px;font-size:14px;color:#475569;line-height:1.6;">
@@ -551,7 +551,7 @@ def send_suspension_email(to_email: str, customer_name: str, reason: str = "") -
           <tr>
             <td style="background:#f8fafc;padding:20px 32px;text-align:center;border-top:1px solid #e2e8f0;">
               <p style="margin:0;font-size:12px;color:#94a3b8;">
-                © 2026 Billing Platform. All rights reserved.
+                © 2026 NexFlow. All rights reserved.
               </p>
             </td>
           </tr>
@@ -566,3 +566,316 @@ def send_suspension_email(to_email: str, customer_name: str, reason: str = "") -
         _send(to_email, subject, html_body, text_body)
     except Exception as exc:
         logger.error("Failed to send suspension email to %s: %s", to_email, exc)
+
+
+# ---------------------------------------------------------------------------
+# Payment Success Email
+# ---------------------------------------------------------------------------
+
+def send_payment_success_email(
+    to_email: str,
+    customer_name: str,
+    plan_name: str,
+    amount_paid: float,
+    payment_date: str,
+    payment_method: str,
+    transaction_id: str,
+    invoice_id: str,
+) -> None:
+    logger.info("=== Sending Payment Success email to %s ===", to_email)
+    subject = f"Payment Successful — Invoice #{invoice_id}"
+    formatted_amount = f"₹{amount_paid:,.2f}"
+
+    text_body = (
+        f"Hi {customer_name},\n\n"
+        f"Your payment of {formatted_amount} for {plan_name} was successful.\n\n"
+        f"Payment ID: {transaction_id}\n"
+        f"Invoice ID: {invoice_id}\n"
+        f"Amount: {formatted_amount}\n"
+        f"Payment Date: {payment_date}\n"
+        f"Payment Method: {payment_method}\n\n"
+        f"You can view and download your invoice from My Invoices: {settings.FRONTEND_URL}/customer/invoices\n\n"
+        "— NexFlow Team"
+    )
+
+    html_body = f"""
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table width="500" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 10px 30px rgba(15,23,42,0.08);border:1px solid #e2e8f0;">
+          <tr>
+            <td style="background:linear-gradient(135deg, #059669 0%, #10b981 100%);padding:32px;text-align:center;">
+              <span style="font-size:24px;font-weight:800;color:#ffffff;">NexFlow</span>
+              <span style="font-size:12px;color:#d1fae5;font-weight:500;margin-top:4px;display:block;">Payment Confirmation & Receipt</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px 36px;">
+              <p style="margin:0 0 12px;font-size:18px;font-weight:700;color:#0f172a;">Hi {customer_name},</p>
+              <p style="margin:0 0 20px;font-size:14px;color:#475569;line-height:1.6;">
+                Thank you for your payment! Your subscription to <strong>{plan_name}</strong> is active.
+              </p>
+              <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:24px;font-size:13px;">
+                <div style="margin-bottom:8px;"><strong>Payment ID:</strong> {transaction_id}</div>
+                <div style="margin-bottom:8px;"><strong>Invoice ID:</strong> {invoice_id}</div>
+                <div style="margin-bottom:8px;"><strong>Amount Paid:</strong> <span style="color:#059669;font-weight:800;">{formatted_amount}</span></div>
+                <div style="margin-bottom:8px;"><strong>Payment Date:</strong> {payment_date}</div>
+                <div><strong>Payment Method:</strong> {payment_method}</div>
+              </div>
+              <div style="text-align:center;margin:28px 0;">
+                <a href="{settings.FRONTEND_URL}/customer/invoices" style="display:inline-block;padding:14px 32px;background:#059669;color:#ffffff;border-radius:10px;font-size:14px;font-weight:700;text-decoration:none;">View Invoice</a>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#f8fafc;padding:20px 32px;text-align:center;border-top:1px solid #e2e8f0;">
+              <p style="margin:0;font-size:12px;color:#94a3b8;">© 2026 NexFlow. All rights reserved.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+"""
+    try:
+        _send(to_email, subject, html_body, text_body)
+    except Exception as exc:
+        logger.error("Failed to send payment success email to %s: %s", to_email, exc)
+
+
+# ---------------------------------------------------------------------------
+# Subscription Cancellation Email
+# ---------------------------------------------------------------------------
+
+def send_cancellation_email(
+    to_email: str,
+    customer_name: str,
+    plan_name: str,
+    cancellation_date: str,
+    expiry_date: str,
+    amount_paid: float,
+    refund_amount: float,
+    refund_status: str,
+    subscription_id: str,
+) -> None:
+    logger.info("=== Sending Cancellation email to %s ===", to_email)
+    subject = f"Subscription Cancelled — {plan_name}"
+    formatted_refund = f"₹{refund_amount:,.2f}"
+
+    text_body = (
+        f"Hi {customer_name},\n\n"
+        f"Your {plan_name} subscription has been cancelled successfully.\n\n"
+        f"Subscription ID: {subscription_id}\n"
+        f"Cancellation Date: {cancellation_date}\n"
+        f"Subscription Expiry Date: {expiry_date}\n"
+        f"Refund Amount: {formatted_refund}\n"
+        f"Refund Status: {refund_status}\n\n"
+        "— NexFlow Team"
+    )
+
+    html_body = f"""
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table width="500" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 10px 30px rgba(15,23,42,0.08);border:1px solid #e2e8f0;">
+          <tr>
+            <td style="background:linear-gradient(135deg, #475569 0%, #334155 100%);padding:32px;text-align:center;">
+              <span style="font-size:24px;font-weight:800;color:#ffffff;">NexFlow</span>
+              <span style="font-size:12px;color:#cbd5e1;font-weight:500;margin-top:4px;display:block;">Subscription Cancellation Notice</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px 36px;">
+              <p style="margin:0 0 12px;font-size:18px;font-weight:700;color:#0f172a;">Hi {customer_name},</p>
+              <p style="margin:0 0 20px;font-size:14px;color:#475569;line-height:1.6;">
+                Your subscription to <strong>{plan_name}</strong> has been cancelled.
+              </p>
+              <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:24px;font-size:13px;">
+                <div style="margin-bottom:8px;"><strong>Subscription ID:</strong> {subscription_id}</div>
+                <div style="margin-bottom:8px;"><strong>Cancellation Date:</strong> {cancellation_date}</div>
+                <div style="margin-bottom:8px;"><strong>Prorated Refund:</strong> <span style="color:#2563eb;font-weight:800;">{formatted_refund}</span></div>
+                <div><strong>Refund Status:</strong> {refund_status}</div>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#f8fafc;padding:20px 32px;text-align:center;border-top:1px solid #e2e8f0;">
+              <p style="margin:0;font-size:12px;color:#94a3b8;">© 2026 NexFlow. All rights reserved.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+"""
+    try:
+        _send(to_email, subject, html_body, text_body)
+    except Exception as exc:
+        logger.error("Failed to send cancellation email to %s: %s", to_email, exc)
+
+
+# ---------------------------------------------------------------------------
+# Subscription Upgrade Email
+# ---------------------------------------------------------------------------
+
+def send_upgrade_email(
+    to_email: str,
+    customer_name: str,
+    previous_plan: str,
+    new_plan: str,
+    previous_price: float,
+    new_price: float,
+    prorated_credit: float,
+    amount_charged: float,
+    next_renewal_amount: float,
+    effective_date: str,
+    invoice_id: str,
+    payment_id: str,
+) -> None:
+    logger.info("=== Sending Upgrade email to %s ===", to_email)
+    subject = f"Subscription Upgraded — {new_plan}"
+
+    text_body = (
+        f"Hi {customer_name},\n\n"
+        f"Your subscription has been upgraded from {previous_plan} to {new_plan}.\n\n"
+        f"Amount Charged Today: ₹{amount_charged:,.2f}\n"
+        f"Prorated Credit Applied: ₹{prorated_credit:,.2f}\n"
+        f"Next Renewal Amount: ₹{next_renewal_amount:,.2f}\n"
+        f"Invoice ID: {invoice_id}\n"
+        f"Payment ID: {payment_id}\n\n"
+        "— NexFlow Team"
+    )
+
+    html_body = f"""
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table width="500" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 10px 30px rgba(15,23,42,0.08);border:1px solid #e2e8f0;">
+          <tr>
+            <td style="background:linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);padding:32px;text-align:center;">
+              <span style="font-size:24px;font-weight:800;color:#ffffff;">NexFlow</span>
+              <span style="font-size:12px;color:#ddd6fe;font-weight:500;margin-top:4px;display:block;">Subscription Upgrade Confirmation</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px 36px;">
+              <p style="margin:0 0 12px;font-size:18px;font-weight:700;color:#0f172a;">Hi {customer_name},</p>
+              <p style="margin:0 0 20px;font-size:14px;color:#475569;line-height:1.6;">
+                Your subscription upgrade to <strong>{new_plan}</strong> is complete!
+              </p>
+              <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:24px;font-size:13px;">
+                <div style="margin-bottom:8px;"><strong>Previous Plan:</strong> {previous_plan}</div>
+                <div style="margin-bottom:8px;"><strong>New Plan:</strong> {new_plan}</div>
+                <div style="margin-bottom:8px;"><strong>Unused Plan Credit:</strong> ₹{prorated_credit:,.2f}</div>
+                <div style="margin-bottom:8px;"><strong>Amount Charged Today:</strong> <span style="color:#7c3aed;font-weight:800;">₹{amount_charged:,.2f}</span></div>
+                <div><strong>Invoice ID:</strong> {invoice_id}</div>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#f8fafc;padding:20px 32px;text-align:center;border-top:1px solid #e2e8f0;">
+              <p style="margin:0;font-size:12px;color:#94a3b8;">© 2026 NexFlow. All rights reserved.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+"""
+    try:
+        _send(to_email, subject, html_body, text_body)
+    except Exception as exc:
+        logger.error("Failed to send upgrade email to %s: %s", to_email, exc)
+
+
+# ---------------------------------------------------------------------------
+# Subscription Downgrade Email
+# ---------------------------------------------------------------------------
+
+def send_downgrade_email(
+    to_email: str,
+    customer_name: str,
+    previous_plan: str,
+    new_plan: str,
+    previous_price: float,
+    new_price: float,
+    effective_date: str,
+    next_billing_date: str,
+    subscription_id: str,
+) -> None:
+    logger.info("=== Sending Downgrade email to %s ===", to_email)
+    subject = f"Subscription Downgraded — {new_plan}"
+
+    text_body = (
+        f"Hi {customer_name},\n\n"
+        f"Your plan downgrade request from {previous_plan} to {new_plan} has been recorded.\n\n"
+        f"New Plan Price: ₹{new_price:,.2f}\n"
+        f"Effective Date: {effective_date}\n"
+        f"Next Billing Date: {next_billing_date}\n"
+        f"Subscription ID: {subscription_id}\n\n"
+        "— NexFlow Team"
+    )
+
+    html_body = f"""
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table width="500" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 10px 30px rgba(15,23,42,0.08);border:1px solid #e2e8f0;">
+          <tr>
+            <td style="background:linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);padding:32px;text-align:center;">
+              <span style="font-size:24px;font-weight:800;color:#ffffff;">NexFlow</span>
+              <span style="font-size:12px;color:#93c5fd;font-weight:500;margin-top:4px;display:block;">Plan Downgrade Schedule</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px 36px;">
+              <p style="margin:0 0 12px;font-size:18px;font-weight:700;color:#0f172a;">Hi {customer_name},</p>
+              <p style="margin:0 0 20px;font-size:14px;color:#475569;line-height:1.6;">
+                Your subscription will be changed to <strong>{new_plan}</strong> starting at your next renewal date.
+              </p>
+              <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:24px;font-size:13px;">
+                <div style="margin-bottom:8px;"><strong>Current Plan:</strong> {previous_plan}</div>
+                <div style="margin-bottom:8px;"><strong>Scheduled New Plan:</strong> {new_plan}</div>
+                <div style="margin-bottom:8px;"><strong>New Renewal Price:</strong> ₹{new_price:,.2f}</div>
+                <div><strong>Effective Renewal Date:</strong> {effective_date}</div>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#f8fafc;padding:20px 32px;text-align:center;border-top:1px solid #e2e8f0;">
+              <p style="margin:0;font-size:12px;color:#94a3b8;">© 2026 NexFlow. All rights reserved.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+"""
+    try:
+        _send(to_email, subject, html_body, text_body)
+    except Exception as exc:
+        logger.error("Failed to send downgrade email to %s: %s", to_email, exc)

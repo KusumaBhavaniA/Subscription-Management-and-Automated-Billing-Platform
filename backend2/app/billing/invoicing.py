@@ -19,7 +19,7 @@ from app.billing.models import Invoice, InvoiceLineItem, Subscription
 from app.billing.proration import ProrationResult
 
 TWO_PLACES = Decimal("0.01")
-DEFAULT_TAX_RATE = Decimal("0.18")  # 18% — swap for your region/plan's actual rate
+DEFAULT_TAX_RATE = Decimal("0.10")  # 10% GST rate for subscription billing
 INVOICE_DUE_DAYS = 7
 
 

@@ -82,7 +82,7 @@ export const generateTaxInvoicePdf = (
 
   if (hasPaidTransactions && latestInvoice) {
     const totalPaid = latestInvoice.amount || billingSummary.currentSubscriptionCost || 0;
-    subtotal = Math.round(totalPaid / 1.18);
+    subtotal = Math.round(totalPaid / 1.10);
     taxAmount = totalPaid - subtotal;
     grandTotal = totalPaid;
 
@@ -91,7 +91,7 @@ export const generateTaxInvoicePdf = (
         item.description,
         item.quantity || 1,
         formatPdfCurrency(item.unitPrice || item.amount),
-        formatPdfCurrency(Math.round((item.amount || 0) * 0.18)),
+        formatPdfCurrency(Math.round((item.amount || 0) * 0.10)),
         formatPdfCurrency(item.amount),
       ]);
     } else {
@@ -121,7 +121,7 @@ export const generateTaxInvoicePdf = (
   autoTable(doc, {
     startY: y,
     margin: { left: 14, right: 14 },
-    head: [['Description', 'Qty', 'Unit Price', 'GST (18%)', 'Total']],
+    head: [['Description', 'Qty', 'Unit Price', 'GST (10%)', 'Total']],
     body: itemsData,
     headStyles: {
       fillColor: PDF_COLORS.primary,
@@ -160,7 +160,7 @@ export const generateTaxInvoicePdf = (
     },
     body: [
       ['Subtotal:', formatPdfCurrency(subtotal)],
-      ['Tax (18% GST Included):', formatPdfCurrency(taxAmount)],
+      ['Tax (10% GST Included):', formatPdfCurrency(taxAmount)],
       ['Discount Applied:', formatPdfCurrency(discountAmount)],
       ['Grand Total:', formatPdfCurrency(grandTotal)],
     ],

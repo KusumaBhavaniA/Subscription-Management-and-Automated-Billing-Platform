@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
     EMAIL_FROM: str = ""
-    EMAIL_FROM_NAME: str = "Billing Platform"
+    EMAIL_FROM_NAME: str = "NexFlow"
     SMTP_TIMEOUT_SECONDS: int = 15
 
     # Frontend base URL — used in password reset links and OAuth redirects

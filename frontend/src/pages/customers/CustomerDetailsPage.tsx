@@ -74,28 +74,11 @@ export const CustomerDetailsPage: React.FC = () => {
         const allTickets = await ticketApi.getTickets();
         setTickets(allTickets.filter((t) => t.customerEmail?.toLowerCase() === cust.email.toLowerCase()));
       } else {
-        // Fallback for demonstration if ID direct access
-        const fallbackCust: Customer = {
-          id: id,
-          customerId: id.startsWith('CUS-') ? id : `CUS-2026-${Math.floor(100000 + Math.random() * 900000)}`,
-          name: 'Rohan Sharma',
-          firstName: 'Rohan',
-          lastName: 'Sharma',
-          email: 'rohan.sharma@techcorp.in',
-          phone: '+91 9876543210',
-          status: 'Verified',
-          subscriptionPlan: 'Pro Business',
-          subscriptionStatus: 'Active',
-          mrr: 4999,
-          totalSpent: 59988,
-          joinedDate: '2025-11-15',
-          country: 'India',
-          address: '102 Tech Park, Outer Ring Road, Bangalore, KA',
-        };
-        setCustomer(fallbackCust);
+        setCustomer(null);
       }
     } catch (err) {
       console.error(err);
+      setCustomer(null);
     } finally {
       setIsLoading(false);
     }
@@ -505,13 +488,13 @@ export const CustomerDetailsPage: React.FC = () => {
                   <tr className="hover:bg-tableHover">
                     <td className="p-3 font-mono font-bold text-primary">INV-2026-002</td>
                     <td className="p-3 text-secondaryText">05 July 2026</td>
-                    <td className="p-3 font-bold text-heading">{formatCurrency(customer.mrr || 4999)}</td>
+                    <td className="p-3 font-bold text-heading">{formatCurrency(customer.mrr ?? 0)}</td>
                     <td className="p-3"><Badge variant="success">Paid</Badge></td>
                   </tr>
                   <tr className="hover:bg-tableHover">
                     <td className="p-3 font-mono font-bold text-primary">INV-2026-001</td>
                     <td className="p-3 text-secondaryText">05 June 2026</td>
-                    <td className="p-3 font-bold text-heading">{formatCurrency(customer.mrr || 4999)}</td>
+                    <td className="p-3 font-bold text-heading">{formatCurrency(customer.mrr ?? 0)}</td>
                     <td className="p-3"><Badge variant="success">Paid</Badge></td>
                   </tr>
                 </tbody>
@@ -540,7 +523,7 @@ export const CustomerDetailsPage: React.FC = () => {
                     <td className="p-3 font-mono font-bold text-primary">TXN-98712399</td>
                     <td className="p-3 text-secondaryText">05 July 2026, 14:30</td>
                     <td className="p-3 font-semibold text-primaryText">Credit Card (Visa)</td>
-                    <td className="p-3 font-bold text-heading">{formatCurrency(customer.mrr || 4999)}</td>
+                    <td className="p-3 font-bold text-heading">{formatCurrency(customer.mrr ?? 0)}</td>
                     <td className="p-3"><Badge variant="success">Successful</Badge></td>
                   </tr>
                 </tbody>

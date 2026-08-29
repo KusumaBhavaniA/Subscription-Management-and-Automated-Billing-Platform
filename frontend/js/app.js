@@ -8,7 +8,7 @@
     };
 
     var PAGE_TITLES = {
-        index: 'Billing Platform',
+        index: 'NexFlow',
         login: 'Sign in',
         signup: 'Create account',
         'forgot-password': 'Recover access',
@@ -187,7 +187,7 @@
 
         AppState.page = BillingUtils.getPageName();
         AppState.basePath = BillingUtils.getBasePath();
-        document.title = 'Billing Platform - ' + (PAGE_TITLES[AppState.page] || 'Dashboard');
+        document.title = 'NexFlow - ' + (PAGE_TITLES[AppState.page] || 'Dashboard');
 
         ThemeManager.init();
         BillingAuth.guardRoute();

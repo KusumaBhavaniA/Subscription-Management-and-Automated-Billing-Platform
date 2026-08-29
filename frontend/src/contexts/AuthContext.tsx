@@ -92,9 +92,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return await authService.resendOTP(email);
   };
 
-  const updateUser = (updatedUser: Partial<User>) => {
+  const updateUser = async (updatedUser: Partial<User>) => {
     if (user) {
-      const newUserData = { ...user, ...updatedUser };
+      let savedUser = updatedUser;
+      try {
+        const backendUser = await authService.updateProfile(updatedUser);
+        if (backendUser) {
+          savedUser = { ...updatedUser, ...backendUser };
+        }
+      } catch (err) {
+        console.warn('Backend updateProfile error:', err);
+      }
+
+      const newUserData = { ...user, ...savedUser };
       setUser(newUserData);
 
       const session = authService.getCurrentSession();

@@ -20,6 +20,10 @@ import { Input } from '../../components/common/Input';
 import { Select } from '../../components/common/Select';
 import { Modal } from '../../components/common/Modal';
 import { Toast } from '../../components/common/Toast';
+import { PageHeader } from '../../components/common/PageHeader';
+import { SearchInput } from '../../components/common/SearchInput';
+import { Avatar } from '../../components/common/Avatar';
+import { EmptyState } from '../../components/common/EmptyState';
 import { useAuth } from '../../hooks/useAuth';
 import {
   Ticket,
@@ -269,12 +273,12 @@ export const SupportPage: React.FC = () => {
         id: `cust-${Date.now()}`,
         name: selectedTicket?.customerName || email,
         email,
-        phone: '+91 9876543210',
-        status: 'Verified',
-        subscriptionPlan: 'Pro Business',
-        mrr: 4999,
-        totalSpent: 14997,
-        joinedDate: '2026-01-01',
+        phone: '',
+        status: 'Pending',
+        subscriptionPlan: 'No active plan',
+        mrr: 0,
+        totalSpent: 0,
+        joinedDate: new Date().toISOString().split('T')[0],
         country: 'India',
       });
     }
@@ -320,19 +324,15 @@ export const SupportPage: React.FC = () => {
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-extrabold text-heading flex items-center gap-2">
-            <Headphones className="w-6 h-6 text-primary" />
-            {isAdmin ? 'Support Ticket Operations' : 'Help & Support Center'}
-          </h1>
-          <p className="text-xs text-secondaryText mt-1">
-            {isAdmin
-              ? 'Manage customer inquiries, review restoration requests, and communicate with customers.'
-              : 'Submit support requests, track resolution progress, and chat with technical specialists.'}
-          </p>
-        </div>
-
+      <PageHeader
+        title={isAdmin ? 'Support Ticket Operations' : 'Help & Support Center'}
+        subtitle={
+          isAdmin
+            ? 'Manage customer inquiries, review restoration requests, assign support engineers, and communicate with customers.'
+            : 'Submit support requests, track resolution progress, and chat with technical specialists.'
+        }
+        icon={Headphones}
+      >
         {!isAdmin && (
           <Button
             variant="primary"
@@ -343,7 +343,7 @@ export const SupportPage: React.FC = () => {
             Raise Ticket
           </Button>
         )}
-      </div>
+      </PageHeader>
 
       {/* DEDICATED SUPPORT SECTION FOR SUSPENDED CUSTOMERS */}
       {isCustomerSuspended && (
@@ -430,16 +430,12 @@ export const SupportPage: React.FC = () => {
         <div className={`lg:col-span-5 space-y-4 ${selectedTicket ? 'hidden lg:block' : 'block'}`}>
           <Card className="p-4 space-y-4">
             {/* Search & Tabs */}
-            <div className="relative">
-              <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-mutedText" />
-              <input
-                type="text"
-                placeholder="Search tickets by ID, subject, customer..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-input border border-border rounded-xl text-xs text-primaryText focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary font-medium"
-              />
-            </div>
+            <SearchInput
+              placeholder="Search tickets by ID, subject, customer..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onClear={() => setSearchQuery('')}
+            />
 
             <div className="flex items-center gap-1 overflow-x-auto pb-1 border-b border-border no-scrollbar">
               {(['All', 'Open', 'Resolved', 'Cancelled'] as const).map((tab) => (
@@ -448,8 +444,8 @@ export const SupportPage: React.FC = () => {
                   onClick={() => setActiveTab(tab)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                     activeTab === tab
-                      ? 'bg-primary text-white shadow-sm'
-                      : 'text-secondaryText hover:text-primaryText hover:bg-secondary'
+                      ? 'bg-primary text-white shadow-xs'
+                      : 'text-secondaryText hover:text-heading hover:bg-secondary'
                   }`}
                 >
                   {tab}
@@ -460,8 +456,12 @@ export const SupportPage: React.FC = () => {
             {/* List items */}
             <div className="space-y-2 max-h-[580px] overflow-y-auto pr-1 divide-y divide-border/60">
               {filteredTickets.length === 0 ? (
-                <div className="p-8 text-center text-xs font-medium text-mutedText">
-                  No support tickets found.
+                <div className="py-6">
+                  <EmptyState
+                    icon={MessageSquare}
+                    title="No Support Tickets Found"
+                    description="Customer support conversations will appear here when tickets are created."
+                  />
                 </div>
               ) : (
                 filteredTickets.map((t) => {
@@ -703,12 +703,12 @@ export const SupportPage: React.FC = () => {
               </form>
             </Card>
           ) : (
-            <Card className="h-[680px] flex flex-col items-center justify-center text-center p-8 border border-border">
-              <MessageSquare className="w-12 h-12 text-primary opacity-60 mb-3" />
-              <h3 className="text-base font-extrabold text-heading">No Ticket Selected</h3>
-              <p className="text-xs text-secondaryText mt-1 max-w-sm">
-                Select a ticket from the left panel to inspect conversation history, respond, or update status.
-              </p>
+            <Card className="h-[680px] flex items-center justify-center p-8 border border-border">
+              <EmptyState
+                icon={MessageSquare}
+                title="No Ticket Selected"
+                description="Select a ticket from the left panel to inspect conversation history, respond, or update status."
+              />
             </Card>
           )}
         </div>
